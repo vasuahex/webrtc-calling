@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* src/fonts.css */
+@font-face {
+	font-family: 'SuperPulp';
+	src: url('../assets/SuperPulp.ttf') format('truetype');
+	font-weight: normal;
+	font-style: normal;
+}
+
+
+
+.dark {
+	--color-primary: #8a1e4f;
+	--color-secondary: #10b981;
+	--color-background: #121212;
+	--color-text: #e0e0e0;
+	--color-border: #373737;
+
+	--font-family-primiary: 'Mochiy Pop One', sans-serif;
+	--font-family-secondary: 'IM Fell English', sans-serif;
+	--font-family-special: 'SuperPulp', sans-serif;
+}
+:root {
+	--color-primary: #4a90e2;
+	--color-secondary: #50e3c2;
+	--color-background: #ffffff;
+	--color-text: #333333;
+	--color-border: #e5e5e5;
+	
+	--font-family-primiary: 'SuperPulp', sans-serif;
+	--font-family-secondary: 'IM Fell English', sans-serif;
+	--font-family-special: 'Mochiy Pop One', sans-serif;
+}
+
+
+@layer utilities {
+	@variants responsive {
+
+		/* Hide scrollbar for Chrome, Safari and Opera */
+		.no-scrollbar::-webkit-scrollbar {
+			display: none;
+		}
+
+		/* Hide scrollbar for IE, Edge and Firefox */
+		.no-scrollbar {
+			-ms-overflow-style: none;
+			/* IE and Edge */
+			scrollbar-width: none;
+			/* Firefox */
+		}
+	}
+}

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { peersToTest } from "./reuse/static"
+import { getTooltipStyle, peersToTest } from "./reuse/static"
+import Button from './reuse/Button';
+import Button2 from './reuse/Button2';
 interface StunServer {
     urls: string;
     username?: string;
@@ -24,6 +26,13 @@ async function testStunServer(stunServer: StunServer): Promise<boolean> {
         pc.onicecandidateerror = () => {
             resolve(false); // STUN server is not working
             pc.close();
+        };
+
+        pc.onicegatheringstatechange = () => {
+            if (pc.iceGatheringState === 'complete') {
+                resolve(false); // No candidates were gathered
+                pc.close();
+            }
         };
 
         pc.createOffer().then(offer => pc.setLocalDescription(offer));
@@ -66,30 +75,38 @@ const StunServerTester: React.FC = () => {
         const available = await getAvailableStunServers(peersToTest.iceServers);
         setAvailableServers(available);
     };
+    const styles = getTooltipStyle("right");
     return (
-        <div>
-            <h1>STUN Server Tester</h1>
-            <button onClick={testServers}>Test STUN Servers</button>
-            <ul>
-                {peersToTest.iceServers.map(server => (
-                    <li key={server.urls}>
-                        {server.urls}: {serverStatus[server.urls] === null ? 'Testing...' : serverStatus[server.urls] ? 'Working' : 'Not Working'}
-                    </li>
-                ))}
-            </ul>
-            <h1>total  {peersToTest.iceServers.length}</h1>
-            <button onClick={findAvailableServers}>Find Available STUN Servers</button>
-            {availableServers.length > 0 && (
-                <div>
-                    <h2>Available STUN Servers</h2>
-                    <ul>
-                        {availableServers.map(server => (
-                            <li key={server.urls}>{server.urls}</li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-            <h2>available{availableServers.length}</h2>
+        <div className='flex p-5'>
+            <div>
+                <h1>STUN Server Tester</h1>
+                <Button text='Test STUN Servers' onClick={testServers} styles={styles} tooltipText='Testing Button' />
+                <h1>total  {peersToTest.iceServers.length}</h1>
+                <Button2 isLoading={false} text='text-btn' type='button' styles={styles} tooltipText='sample btn' />
+                <ul>
+                    {peersToTest.iceServers.map(server => (
+                        <li key={server.urls}>
+                            {server.urls}: {serverStatus[server.urls] === null ? 'Testing...' : serverStatus[server.urls] ? 'Working' : 'Not Working'}
+                        </li>
+                    ))}
+                </ul>
+            </div>
+            <div>
+                <Button text='Find Available STUN Servers' onClick={findAvailableServers} styles={styles} tooltipText='Available Servers ' />
+                <h2>available{availableServers.length}</h2>
+
+                {availableServers.length > 0 && (
+                    <div>
+                        <h2>Available STUN Servers</h2>
+                        <ul>
+                            {availableServers.map(server => (
+                                <li key={server.urls}>{server.urls}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+            </div>
         </div>
     );
 };

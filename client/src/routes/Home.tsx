@@ -4,7 +4,6 @@ import List from '../reuse/List';
 const App = () => {
   const [items, setItems] = useState<any>([]);
   const [inputValue, setInputValue] = useState('');
-  console.log(items);
 
   const handleAddItem = () => {
     if (inputValue.trim()) {

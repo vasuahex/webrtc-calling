@@ -4,6 +4,7 @@ import ToolTip from './routes/ToolTip'
 import Toasts from './routes/Toasts'
 import PeerTest from './PeerTest'
 import { ToastContainer } from "react-toastify"
+import WaveForm from './routes/WaveForm'
 import "./css/App.css"
 import 'react-toastify/dist/ReactToastify.css';
 import Themes from './routes/Themes'
@@ -14,6 +15,7 @@ const App = () => {
         pauseOnFocusLoss draggable pauseOnHover theme="light" />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/waveform" element={<WaveForm />} />
         <Route path="/toasts" element={<Toasts />} />
         <Route path="/test-peers" element={<PeerTest />} />
         <Route path="/themes" element={<Themes />} />

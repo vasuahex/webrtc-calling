@@ -23,13 +23,14 @@
 	--font-family-secondary: 'IM Fell English', sans-serif;
 	--font-family-special: 'SuperPulp', sans-serif;
 }
+
 :root {
 	--color-primary: #4a90e2;
 	--color-secondary: #50e3c2;
 	--color-background: #ffffff;
 	--color-text: #333333;
 	--color-border: #e5e5e5;
-	
+
 	--font-family-primiary: 'SuperPulp', sans-serif;
 	--font-family-secondary: 'IM Fell English', sans-serif;
 	--font-family-special: 'Mochiy Pop One', sans-serif;

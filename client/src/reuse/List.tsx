@@ -7,6 +7,15 @@ const height = 110;
 
 const clamp = (n: number, min: number, max: number) => Math.max(Math.min(n, max), min);
 
+type Item = {
+  title: string;
+  id: number;
+};
+
+type ListProps = {
+  items: Item[];
+};
+
 type State = {
   mouse: [number, number];
   delta: [number, number];
@@ -17,25 +26,41 @@ type State = {
   isResizing: boolean;
 };
 
-const List: React.FC = () => {
+const distributeItemsAcrossColumns = (items: Item[]): number[][] => {
+  const columns: number[][] = [[], [], []]; // Assuming 3 columns
+  items.forEach((_, index) => {
+    columns[index % 3].push(index); // Distribute items across columns
+  });
+  return columns;
+};
+
+
+const List: React.FC<ListProps> = ({ items }) => {
   const [state, setState] = useState<State>({
     mouse: [0, 0],
     delta: [0, 0],
     lastPress: null,
     currentColumn: null,
     isPressed: false,
-    order: [
-      [0, 3, 6, 9],
-      [1, 4, 7, 10],
-      [2, 5, 8, 11]
-    ],
-    isResizing: false
+    order: distributeItemsAcrossColumns(items),
+    isResizing: false,
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
-  const getColumnWidth = (): number => containerRef.current ? (containerRef.current.clientWidth / state.order.length) - (gutterPadding / state.order.length) : 0;
+  useEffect(() => {
+    setState(prevState => ({
+      ...prevState,
+      order: distributeItemsAcrossColumns(items),
+    }));
+  }, [items]);
+
+
+  const getColumnWidth = (): number =>
+    containerRef.current
+      ? containerRef.current.clientWidth / 3 - gutterPadding / 3
+      : 0;
 
   const calculateLayout = (order: number[][]): { [key: number]: [number, number] } => {
     const columnWidth = getColumnWidth();
@@ -87,16 +112,16 @@ const List: React.FC = () => {
     const { order, lastPress, currentColumn: colFrom, isPressed, delta: [dx, dy] } = state;
     if (isPressed && colFrom !== null && lastPress !== null) {
       const mouse: [number, number] = [e.pageX - dx, e.pageY - dy];
-      const colTo = clamp(Math.floor((mouse[0] + (width / 2)) / width), 0, 2);
+      const colTo = clamp(Math.floor((mouse[0] + width / 2) / width), 0, 2);
       const columnItems = order[colTo].length;
-      const rowTo = clamp(Math.floor((mouse[1] + (height / 2)) / height), 0, columnItems);
+      const rowTo = clamp(Math.floor((mouse[1] + height / 2) / height), 0, columnItems);
       const rowFrom = order[colFrom].indexOf(lastPress);
       const newOrder = reinsert(order, colFrom, rowFrom, colTo, rowTo);
       setState(prev => ({
         ...prev,
         mouse,
         order: newOrder,
-        currentColumn: colTo
+        currentColumn: colTo,
       }));
     }
   };
@@ -105,7 +130,7 @@ const List: React.FC = () => {
     setState(prev => ({
       ...prev,
       isPressed: false,
-      delta: [0, 0]
+      delta: [0, 0],
     }));
   };
 
@@ -122,43 +147,44 @@ const List: React.FC = () => {
 
   const springs = useSprings(
     state.order.flat().length,
-    state.order.flat().map((item) => {
-      const isActive = (item === state.lastPress && state.isPressed);
+    state.order.flat().map(item => {
+      const isActive = item === state.lastPress && state.isPressed;
       let [x, y] = layout[item] || [0, 0];
       return {
         x: isActive ? state.mouse[0] : x,
         y: isActive ? state.mouse[1] : y,
         scale: isActive ? 1.1 : 1,
         zIndex: isActive ? 99 : 1,
-        immediate: state.isResizing
+        immediate: state.isResizing,
       };
     })
   );
 
   return (
-    <div ref={containerRef} className="items p-5" onMouseDown={(e) => e.preventDefault()}>
+    <div ref={containerRef} className="items p-5" onMouseDown={e => e.preventDefault()}>
       {springs.map((props, index) => {
-        const item = state.order.flat()[index];
-        const isActive = (item === state.lastPress && state.isPressed);
+        const itemIndex = state.order.flat()[index];
+        const item = items[itemIndex];
+        const isActive = itemIndex === state.lastPress && state.isPressed;
 
         return (
           <animated.div
-            key={item}
-            onMouseDown={(e) => {
-              const colIndex = state.order.findIndex(col => col.includes(item));
-              handleMouseDown(item, colIndex, [props.x.get(), props.y.get()], e);
+            key={item.id}
+            onMouseDown={e => {
+              const colIndex = state.order.findIndex(col => col.includes(itemIndex));
+              handleMouseDown(itemIndex, colIndex, [props.x.get(), props.y.get()], e);
             }}
             className={`item absolute rounded shadow-md bg-gray-200 cursor-grab ${isActive ? 'bg-gray-300 cursor-grabbing' : ''}`}
             style={{
               width: `calc((100% / 3) - ${gutterPadding}px)`,
               height: '90px',
-              transform: props.x.to((x) => `translate3d(${x}px, ${props.y.get()}px, 0)`),
+              transform: props.x.to(x => `translate3d(${x}px, ${props.y.get()}px, 0)`),
               zIndex: props.zIndex,
-              scale: props.scale
+              scale: props.scale,
             }}
           >
             <div className="flex items-center justify-center h-full">
-              Item {item + 1}
+              {item.title}
             </div>
           </animated.div>
         );
@@ -168,4 +194,3 @@ const List: React.FC = () => {
 };
 
 export default List;
-

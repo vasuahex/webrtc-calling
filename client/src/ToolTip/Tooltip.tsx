@@ -1,4 +1,3 @@
-import React from 'react';
 import './tooltip.css';
 import Button from '../reuse/Button';
 import { getTooltipStyle } from '../reuse/static';

@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit"
+import { createSlice, } from "@reduxjs/toolkit"
 
 // export const upateUser = createAsyncThunk('authSlice/upateUser', async (data: { id: string, value: { name?: string, about?: string, profile?: string } }, thunkAPI) => {
 //     try {
@@ -44,6 +44,7 @@ const authSlice = createSlice({
         }
     },
     extraReducers: (builder) => {
+        console.log(builder);
 
     }
 

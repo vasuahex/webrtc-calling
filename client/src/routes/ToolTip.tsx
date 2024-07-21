@@ -1,4 +1,3 @@
-import React from 'react'
 import TooltipButton from '../ToolTip/Tooltip'
 
 const ToolTip = () => {

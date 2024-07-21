@@ -7,6 +7,7 @@ const AudioRecorder: React.FC = () => {
     const [isRecording, setIsRecording] = useState(false);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    console.log(audioBlob);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const recordedWaveformRef = useRef<HTMLDivElement>(null); // Ref for WaveSurfer container

@@ -1,33 +1,23 @@
-import { useState } from 'react';
-import List from '../reuse/List';
+// src/App.js
+import React, { useState } from 'react';
+import Sidebar from '../components/pinsert components/SideBar';
+import Header from '../components/pinsert components/Header';
+import MainContent from '../components/pinsert components/MainComponent';
 
-const App = () => {
-  const [items, setItems] = useState<any>([]);
-  const [inputValue, setInputValue] = useState('');
+const App: React.FC = () => {
+  const defaultCategories = ["Cars", "Fitness", "Wallpaper", "Websites", "Photo", "Food", "Nature", "Art", "Travel", "Quotes", "Cats", "Dogs"];
+  const [selectedCategory, setSelectedCategory] = useState<string>(defaultCategories[0]);
 
-  const handleAddItem = () => {
-    if (inputValue.trim()) {
-      const newItem = { title: inputValue, id: items.length + 1 };
-      setItems([...items, newItem]);
-      setInputValue('');
-    }
+  const selectCategory = (category: string) => {
+    setSelectedCategory(category);
   };
+
   return (
-    <div className="container mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold text-center mt-8 mb-4">Drag & Drop in React</h1>
-        <div className="flex justify-center mb-4">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            className="border border-gray-300 p-2 mr-2"
-          />
-          <button onClick={handleAddItem} className="bg-blue-500 text-white p-2">
-            Add Item
-          </button>
-        </div>
-        <List items={items} />
+    <div className="flex">
+      <Sidebar onClick={selectCategory} categories={defaultCategories} />
+      <div className="flex-1 flex flex-col ml-64"> {/* Adjusted margin for fixed sidebar */}
+        <Header />
+        <MainContent category={selectedCategory} />
       </div>
     </div>
   );

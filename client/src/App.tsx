@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import Home from './routes/Home'
 import ToolTip from './routes/ToolTip'
 import Toasts from './routes/Toasts'
+import DragAndDrop from './routes/DragAndDrop'
 import PeerTest from './PeerTest'
 import { ToastContainer } from "react-toastify"
 import WaveForm from './routes/WaveForm'
@@ -15,6 +16,7 @@ const App = () => {
         pauseOnFocusLoss draggable pauseOnHover theme="light" />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/draganddrop" element={<DragAndDrop />} />
         <Route path="/waveform" element={<WaveForm />} />
         <Route path="/toasts" element={<Toasts />} />
         <Route path="/test-peers" element={<PeerTest />} />

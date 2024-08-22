@@ -9,6 +9,7 @@ import WaveForm from './routes/WaveForm'
 import "./css/App.css"
 import 'react-toastify/dist/ReactToastify.css';
 import Themes from './routes/Themes'
+import Pintrest from './routes/Pintrest'
 const App = () => {
   return (
     <div className=''>
@@ -16,6 +17,7 @@ const App = () => {
         pauseOnFocusLoss draggable pauseOnHover theme="light" />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/pintrest" element={<Pintrest />} />
         <Route path="/draganddrop" element={<DragAndDrop />} />
         <Route path="/waveform" element={<WaveForm />} />
         <Route path="/toasts" element={<Toasts />} />

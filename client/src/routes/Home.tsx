@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect, useRef, CSSProperties } from 'react';
 import { Device } from 'mediasoup-client';
+import MediaSoupTypes, { RtpCapabilities, Transport, Producer, Consumer } from 'mediasoup-client/lib/types';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'react-toastify';
 import { RingLoader } from 'react-spinners';
 import ReactPlayer from 'react-player';
+
 const cssOverride: CSSProperties = {
 }
 const App: React.FC = () => {
@@ -14,8 +16,9 @@ const App: React.FC = () => {
 
   const [roomId, setRoomId] = useState<string>(''); // room id from socket create room
   const [joinRoomId, setJoinRoomId] = useState<string>(''); // room id from input field
-  const [device, setDevice] = useState<Device | null>(null);
-  const [rtpCapabilities, setRtpCapabilities] = useState<any>(null);
+  // const [device, setDevice] = useState<MediaSoupTypes.Device | null>(null);
+  const deviceRef = useRef<MediaSoupTypes.Device | null>(null);
+  // const [rtpCapabilities, setRtpCapabilities] = useState<any>(null);
   const [producerTransport, setProducerTransport] = useState<any>(null);
   const [consumerTransports, setConsumerTransports] = useState<any[]>([]);
   const [audioProducer, setAudioProducer] = useState<any>(null);
@@ -24,7 +27,6 @@ const App: React.FC = () => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const socketRef = useRef<Socket | null>(null);
   const [localStream, setLocalstream] = useState<MediaStream | null>(null);
-
   const remoteVideosRef = useRef<HTMLDivElement>(null);
   // console.log(rtpCapabilities, producerTransport, consumerTransports, audioProducer, videoProducer);
 
@@ -45,6 +47,36 @@ const App: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    socketRef.current.on('newProducer', async ({ producerId, producerSocketId, roomId }) => {
+      if (deviceRef.current && roomId) {
+        await createRecvTransport(producerId, deviceRef.current, roomId);
+      } else {
+        toast.error("Device not set when trying to create receive transport", { position: "top-left" })
+      }
+    });
+    // socketRef.current.on('peerJoined', async ({ peerId }) => {
+    //   toast.info(`user joined the room: ${peerId}`, { position: "top-left" })
+    // });
+
+    socketRef.current.on('peerLeft', ({ peerId }) => {
+      console.log('Peer Left:', peerId);
+      setConsumers(prevConsumers =>
+        prevConsumers.filter(consumer => consumer.consumer.producerId !== peerId)
+      );
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.off('newProducer');
+        socketRef.current.off('peerLeft');
+      }
+    };
+  }, [socketRef.current]);
+
+
   const createRoom = async () => {
     if (!socketRef.current) return;
     setIsLoading(true)
@@ -55,7 +87,7 @@ const App: React.FC = () => {
       // Set up WebRTC connection
       const device = new Device();
       await device.load({ routerRtpCapabilities: rtpCapabilities });
-      setDevice(device);
+      deviceRef.current = device
       await createSendTransport(device, roomId);
     });
   };
@@ -73,13 +105,14 @@ const App: React.FC = () => {
 
       const { rtpCapabilities } = response;
 
-      setRtpCapabilities(rtpCapabilities);
+      // setRtpCapabilities(rtpCapabilities);
 
       try {
         const device = new Device();
         await device.load({ routerRtpCapabilities: rtpCapabilities });
-        setDevice(device);
-        setRoomId(roomId)
+        deviceRef.current = device
+
+        setRoomId(joinRoomId)
         await createSendTransport(device, joinRoomId);
       } catch (error) {
         console.error('Failed to join room', error);
@@ -153,32 +186,29 @@ const App: React.FC = () => {
     setIsInRoom(true)
   };
 
-  const createRecvTransport = async (producerId: string) => {
-    if (!socketRef.current || !device) return;
+  const createRecvTransport = async (producerId: string, currentDevice: MediaSoupTypes.Device, roomId: string) => {
+    if (!socketRef.current || !currentDevice) return;
 
     socketRef.current.emit('createWebRtcTransport', { roomId }, async ({ params }: any) => {
+
       if (params.error) {
+        toast.error(params.error, { position: "top-left" })
         console.error(params.error);
         return;
       }
 
-      const transport = device.createRecvTransport(params);
-      console.log(transport);
+      const transport = currentDevice.createRecvTransport(params);
 
       transport.on('connect', ({ dtlsParameters }, callback, errback) => {
-        console.log(dtlsParameters);
-
-        socketRef.current!.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters },
-          callback
-        );
+        socketRef.current!.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters }, callback);
       });
-
-      await connectRecvTransport(transport, producerId);
+      // create recv tranport completed.
+      await connectRecvTransport(transport, producerId, currentDevice, roomId);
     });
   };
 
-  const connectRecvTransport = async (transport: any, producerId: string) => {
-    if (!socketRef.current) return;
+  const connectRecvTransport = async (transport: any, producerId: string, device: MediaSoupTypes.Device, roomId: string) => {
+    if (!socketRef.current || !roomId) return;
 
     socketRef.current.emit('consume', { roomId, producerId, rtpCapabilities: device!.rtpCapabilities },
       async ({ id, producerId, kind, rtpParameters }: any) => {
@@ -193,7 +223,13 @@ const App: React.FC = () => {
 
         setConsumers((prevConsumers) => [...prevConsumers, { consumer, stream }]);
 
-        socketRef.current!.emit('resumeConsumer', { roomId, consumerId: id });
+        socketRef.current!.emit('resumeConsumer', { roomId, consumerId: id }, ({ params }: any) => {
+          if (params.error) {
+            toast.error(params.error, { position: "top-left" })
+            console.error(params.error);
+            return;
+          }
+        });
       }
     );
   };
@@ -203,8 +239,9 @@ const App: React.FC = () => {
 
     socketRef.current.emit('leaveRoom', { roomId });
     setRoomId('');
-    setDevice(null);
-    setRtpCapabilities(null);
+    // setDevice(null);
+    deviceRef.current = null
+    // setRtpCapabilities(null);
     setProducerTransport(null);
     setConsumerTransports([]);
     setAudioProducer(null);
@@ -224,30 +261,9 @@ const App: React.FC = () => {
     if (remoteVideosRef.current) {
       remoteVideosRef.current.innerHTML = '';
     }
+    setIsInRoom(false)
   };
 
-  useEffect(() => {
-    if (!socketRef.current) return;
-
-    socketRef.current.on('newProducer', ({ producerId, producerSocketId }) => {
-      console.log('New Producer:', producerId, producerSocketId);
-      createRecvTransport(producerId);
-    });
-
-    socketRef.current.on('peerLeft', ({ peerId }) => {
-      console.log('Peer Left:', peerId);
-      setConsumers(prevConsumers =>
-        prevConsumers.filter(consumer => consumer.consumer.producerId !== peerId)
-      );
-    });
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.off('newProducer');
-        socketRef.current.off('peerLeft');
-      }
-    };
-  }, [socketRef.current]);
 
   useEffect(() => {
     console.log("consumers ", consumers);

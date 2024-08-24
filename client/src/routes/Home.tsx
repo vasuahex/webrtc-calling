@@ -19,12 +19,13 @@ const App: React.FC = () => {
   // const [device, setDevice] = useState<MediaSoupTypes.Device | null>(null);
   const deviceRef = useRef<MediaSoupTypes.Device | null>(null);
   // const [rtpCapabilities, setRtpCapabilities] = useState<any>(null);
-  const [producerTransport, setProducerTransport] = useState<any>(null);
-  const [consumerTransports, setConsumerTransports] = useState<any[]>([]);
-  const [audioProducer, setAudioProducer] = useState<any>(null);
-  const [videoProducer, setVideoProducer] = useState<any>(null);
-  // const [consumers, setConsumers] = useState<any[]>([]);
+  // const [producerTransport, setProducerTransport] = useState<any>(null);
+  // const [consumerTransports, setConsumerTransports] = useState<any[]>([]);
+  // const [audioProducer, setAudioProducer] = useState<any>(null);
+  // const [videoProducer, setVideoProducer] = useState<any>(null);
   const [consumers, setConsumers] = useState<{ [producerId: string]: { audio?: MediaStream, video?: MediaStream } }>({});
+  // const [consumers, setConsumers] = useState<any>({});
+
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const socketRef = useRef<Socket | null>(null);
   const [localStream, setLocalstream] = useState<MediaStream | null>(null);
@@ -86,18 +87,23 @@ const App: React.FC = () => {
 
 
   const createRoom = async () => {
-    if (!socketRef.current) return;
-    setIsLoading(true)
-    socketRef.current.emit('createRoom', async (response: any) => {
-      const { roomId, rtpCapabilities } = response;
-      setRoomId(roomId);
+    try {
+      if (!socketRef.current) return;
+      setIsLoading(true)
+      socketRef.current.emit('createRoom', async (response: { rtpCapabilities: RtpCapabilities, roomId: string }) => {
+        const { roomId, rtpCapabilities } = response;
+        setRoomId(roomId);
 
-      // Set up WebRTC connection
-      const device = new Device();
-      await device.load({ routerRtpCapabilities: rtpCapabilities });
-      deviceRef.current = device
-      await createSendTransport(device, roomId);
-    });
+        // Set up WebRTC connection
+        const device = new Device();
+        await device.load({ routerRtpCapabilities: rtpCapabilities });
+        deviceRef.current = device
+        await createSendTransport(device, roomId);
+      });
+    } catch (error: any) {
+      console.log(error);
+      setIsLoading(false)
+    }
   };
 
 
@@ -107,6 +113,7 @@ const App: React.FC = () => {
     socketRef.current.emit('join', { roomId: joinRoomId }, async (response: any) => {
       if (response.error) {
         toast.error(`${response.error}`, { position: "top-left" })
+        setIsLoading(false)
         console.error("Error joining room:", response.error);
         return;
       }
@@ -128,6 +135,7 @@ const App: React.FC = () => {
           await createRecvTransport(producer.producerId, device, joinRoomId);
         }
       } catch (error) {
+        setIsLoading(false)
         console.error('Failed to join room', error);
       }
     });
@@ -161,7 +169,6 @@ const App: React.FC = () => {
           callback({ id });
         });
       });
-      setProducerTransport(transport);
       await createProducers(transport);
     }
     );
@@ -177,6 +184,11 @@ const App: React.FC = () => {
         height: { min: 400, max: 1080, },
       },
     });
+    // console.log(localStream.getVideoTracks()[0]);
+
+    // const stream = new MediaStream([localStream.getVideoTracks()[0]]);
+    // console.log(stream);
+
     setLocalstream(localStream)
     if (!localStream) {
       console.error('No local stream available');
@@ -187,13 +199,13 @@ const App: React.FC = () => {
     const videoTrack = localStream.getVideoTracks()[0];
 
     if (audioTrack) {
-      const audioProducer = await transport.produce({ track: audioTrack });
-      setAudioProducer(audioProducer);
+      await transport.produce({ track: audioTrack });
+      // setAudioProducer(audioProducer);
     }
 
     if (videoTrack) {
-      const videoProducer = await transport.produce({ track: videoTrack });
-      setVideoProducer(videoProducer);
+      await transport.produce({ track: videoTrack });
+      // setVideoProducer(videoProducer);
     }
     setIsLoading(false)
     setIsInRoom(true)
@@ -220,7 +232,7 @@ const App: React.FC = () => {
     });
   };
 
-  const connectRecvTransport = async (transport: any, producerId: string, device: MediaSoupTypes.Device, roomId: string) => {
+  const connectRecvTransport = async (transport: Transport, producerId: string, device: MediaSoupTypes.Device, roomId: string) => {
     if (!socketRef.current || !roomId) return;
 
     socketRef.current.emit('consume', { roomId, producerId, rtpCapabilities: device!.rtpCapabilities },
@@ -259,10 +271,10 @@ const App: React.FC = () => {
     socketRef.current.emit('leaveRoom', { roomId });
     setRoomId('');
     deviceRef.current = null
-    setProducerTransport(null);
-    setConsumerTransports([]);
-    setAudioProducer(null);
-    setVideoProducer(null);
+    // setProducerTransport(null);
+    // setConsumerTransports([]);
+    // setAudioProducer(null);
+    // setVideoProducer(null);
     setConsumers({});
     // Close local media stream
     if (localStream) {
@@ -271,7 +283,7 @@ const App: React.FC = () => {
     }
     setIsInRoom(false)
   };
-  
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-500">
       <div className="space-y-4">
@@ -326,31 +338,48 @@ const App: React.FC = () => {
                       playing
                       width="100%"
                       height="100%"
-                      // Only mute if it's a video stream
+                    // Only mute if it's a video stream
                       muted={!!streams.video}
                     />
                   </div>
                 ))} */}
-                {Object.entries(consumers).map(([producerId, streams]) => {
-                  console.log(streams);
-
-                  return (
-
-                    <div key={producerId} className='w-80 h-60 bg-black'>
+                {Object.entries(consumers).map(([producerId, streams]) => (
+                  <div key={producerId} className='w-80 h-60 bg-black'>
+                    {/* {streams.video && (
                       <video
-                        ref={videoRef => {
+                        ref={(videoRef) => {
                           if (videoRef && streams.video) {
                             videoRef.srcObject = streams.video;
                           }
                         }}
                         autoPlay
-                        muted={!!streams.video}
+                        playsInline
                         width="100%"
                         height="100%"
                       />
+                    )} */}
+                    <div key={producerId} className='w-80 h-60 bg-black'>
+                      <ReactPlayer
+                        url={streams.video}
+                        playing
+                        width="100%"
+                        height="100%"
+                        // Only mute if it's a video stream
+                        muted={!!streams.video}
+                      />
                     </div>
-                  )
-                })}
+                    {streams.audio && !streams.video && (
+                      <audio
+                        ref={(audioRef) => {
+                          if (audioRef && streams.audio) {
+                            audioRef.srcObject = streams.audio;
+                          }
+                        }}
+                        autoPlay
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
             <button

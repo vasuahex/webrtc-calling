@@ -135,15 +135,14 @@ io.on('connection', async (socket) => {
         });
     });
     socket.on('join', async ({ roomId }, callback) => {
-        const router = rooms[roomId]?.router;
-
-        if (!router) {
+        const room = rooms[roomId];
+        if (!room) {
             callback({
                 error: 'Room does not exist',
             });
             return;
         }
-        rooms[roomId].peers[socket.id] = {
+        room.peers[socket.id] = {
             socket,
             transports: [],
             producers: [],
@@ -151,10 +150,19 @@ io.on('connection', async (socket) => {
         };
         socket.join(roomId); // Join the socket.io room
 
-        const rtpCapabilities = router.rtpCapabilities;
-        callback({ rtpCapabilities });
+        const rtpCapabilities = room.router.rtpCapabilities;
+
+        // Get all current producers in the room
+        const existingProducers = Object.values(room.peers).flatMap(peer =>
+            peer.producers.map(producer => ({
+                producerId: producer.id,
+                producerSocketId: peer.socket.id
+            }))
+        );
+
+        callback({ rtpCapabilities, existingProducers });
         // Notify other peers in the room about the new peer
-        // socket.to(roomId).emit('peerJoined', { peerId: socket.id });
+        socket.to(roomId).emit('peerJoined', { peerId: socket.id });
 
     });
 

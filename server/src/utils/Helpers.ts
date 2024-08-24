@@ -2,7 +2,10 @@
 
 
 import os from 'os'
+import axios from 'axios';
+
 const ifaces = os.networkInterfaces()
+
 const getLocalIp = () => {
     let localIp = '127.0.0.1'
     Object.keys(ifaces)?.forEach((ifname: any) => {
@@ -21,6 +24,18 @@ const getLocalIp = () => {
     return localIp
 }
 
+
+const getPublicIp = async () => {
+    try {
+        const response = await axios.get('https://ifconfig.me');
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching public IP:', error);
+        return null;
+    }
+}
+
 export default {
-    getLocalIp
+    getLocalIp,
+    getPublicIp
 }

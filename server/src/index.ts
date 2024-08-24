@@ -50,7 +50,7 @@ const mediaCodecs: RtpCodecCapability[] = [
         kind: 'audio',
         mimeType: 'audio/opus',
         clockRate: 48000,
-        channels: 2,
+        channels: 2, // Stereo audio
     },
     {
         kind: 'video',
@@ -87,14 +87,18 @@ async function createWorkerFunc() {
     console.log(`Worker pid ${worker.pid}`);
     return worker;
 }
-console.log("ip : ", Helpers.getLocalIp());
+// console.log("ip : ", Helpers.getLocalIp());
+// Helpers.getPublicIp().then((ip) => {
+//     console.log(ip);
+// })
 
 async function createWebRtcTransport(router: Router) {
     return router.createWebRtcTransport({
         listenIps: [
             {
-                ip: '0.0.0.0',
-                announcedIp: Helpers.getLocalIp()
+                ip: Helpers.getLocalIp(),
+                // ip: '0.0.0.0',
+                announcedIp: await Helpers.getPublicIp()
                 // announcedIp: '127.0.0.1', // Change this to your server's public IP
             },
         ],
@@ -306,7 +310,7 @@ io.on('connection', async (socket) => {
             const consumer = rooms[roomId]?.peers[socket.id].consumers.find(
                 (c) => c.id === consumerId
             );
-
+ 
             if (!consumer) {
                 callback({ params: { error: 'Consumer not found' } });
                 return;

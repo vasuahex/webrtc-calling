@@ -23,12 +23,12 @@ const App: React.FC = () => {
   const [consumerTransports, setConsumerTransports] = useState<any[]>([]);
   const [audioProducer, setAudioProducer] = useState<any>(null);
   const [videoProducer, setVideoProducer] = useState<any>(null);
-  const [consumers, setConsumers] = useState<any[]>([]);
+  // const [consumers, setConsumers] = useState<any[]>([]);
+  const [consumers, setConsumers] = useState<{ [producerId: string]: { audio?: MediaStream, video?: MediaStream } }>({});
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const socketRef = useRef<Socket | null>(null);
   const [localStream, setLocalstream] = useState<MediaStream | null>(null);
-  const remoteVideosRef = useRef<HTMLDivElement>(null);
-  // console.log(rtpCapabilities, producerTransport, consumerTransports, audioProducer, videoProducer);
+  // const remoteVideosRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     socketRef.current = io('https://localhost:5000', {
@@ -36,7 +36,6 @@ const App: React.FC = () => {
     });
 
     socketRef.current.on('connection-success', ({ socketId }) => {
-      console.log('Connected to server', socketId);
       setIsConnected(true);
     });
 
@@ -57,15 +56,24 @@ const App: React.FC = () => {
         toast.error("Device not set when trying to create receive transport", { position: "top-left" })
       }
     });
-    // socketRef.current.on('peerJoined', async ({ peerId }) => {
-    //   toast.info(`user joined the room: ${peerId}`, { position: "top-left" })
-    // });
+    socketRef.current.on('peerJoined', async ({ peerId }) => {
+      toast.info(`user joined the room: ${peerId}`, { position: "top-left" })
+    });
 
     socketRef.current.on('peerLeft', ({ peerId }) => {
-      console.log('Peer Left:', peerId);
-      setConsumers(prevConsumers =>
-        prevConsumers.filter(consumer => consumer.consumer.producerId !== peerId)
-      );
+      setConsumers((prevConsumers) => {
+        // Create a new object without the consumers associated with the peerId
+        const newConsumers = { ...prevConsumers };
+
+        // Remove any entries where the producerId matches the peerId
+        for (const producerId in newConsumers) {
+          if (producerId === peerId) {
+            delete newConsumers[producerId];
+          }
+        }
+
+        return newConsumers;
+      });
     });
 
     return () => {
@@ -103,7 +111,7 @@ const App: React.FC = () => {
         return;
       }
 
-      const { rtpCapabilities } = response;
+      const { rtpCapabilities, existingProducers } = response;
 
       // setRtpCapabilities(rtpCapabilities);
 
@@ -114,6 +122,11 @@ const App: React.FC = () => {
 
         setRoomId(joinRoomId)
         await createSendTransport(device, joinRoomId);
+
+        // Create receive transports for existing producers
+        for (const producer of existingProducers) {
+          await createRecvTransport(producer.producerId, device, joinRoomId);
+        }
       } catch (error) {
         console.error('Failed to join room', error);
       }
@@ -221,7 +234,14 @@ const App: React.FC = () => {
 
         const stream = new MediaStream([consumer.track]);
 
-        setConsumers((prevConsumers) => [...prevConsumers, { consumer, stream }]);
+        // setConsumers((prevConsumers) => [...prevConsumers, { consumer, stream }]);
+        setConsumers((prevConsumers) => ({
+          ...prevConsumers,
+          [producerId]: {
+            ...prevConsumers[producerId],
+            [kind]: stream
+          }
+        }));
 
         socketRef.current!.emit('resumeConsumer', { roomId, consumerId: id }, ({ params }: any) => {
           if (params.error) {
@@ -236,58 +256,22 @@ const App: React.FC = () => {
 
   const leaveRoom = () => {
     if (!socketRef.current || !roomId) return;
-
     socketRef.current.emit('leaveRoom', { roomId });
     setRoomId('');
-    // setDevice(null);
     deviceRef.current = null
-    // setRtpCapabilities(null);
     setProducerTransport(null);
     setConsumerTransports([]);
     setAudioProducer(null);
     setVideoProducer(null);
-    setConsumers([]);
-
+    setConsumers({});
     // Close local media stream
     if (localStream) {
       const tracks = (localStream as MediaStream).getTracks();
       tracks.forEach(track => track.stop());
     }
-    // if (localVideoRef.current) {
-    //   localVideoRef.current.srcObject = null;
-    // }
-
-    // Remove all remote video elements
-    if (remoteVideosRef.current) {
-      remoteVideosRef.current.innerHTML = '';
-    }
     setIsInRoom(false)
   };
-
-
-  useEffect(() => {
-    console.log("consumers ", consumers);
-
-    consumers.forEach(({ stream }, index) => {
-      if (remoteVideosRef.current) {
-        const videoElement = document.createElement('video');
-        videoElement.srcObject = stream;
-        videoElement.autoplay = true;
-        videoElement.playsInline = true;
-        videoElement.style.width = '320px';
-        videoElement.style.height = '240px';
-        remoteVideosRef.current.appendChild(videoElement);
-        console.log("Remote video element appended");
-      }
-    });
-
-    return () => {
-      if (remoteVideosRef.current) {
-        remoteVideosRef.current.innerHTML = '';
-      }
-    };
-  }, [consumers]);
-
+  
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-500">
       <div className="space-y-4">
@@ -335,7 +319,38 @@ const App: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-lg font-semibold">Remote Videos</h3>
-                <div ref={remoteVideosRef} className="flex flex-wrap gap-2" />
+                {/* {Object.entries(consumers).map(([producerId, streams]) => (
+                  <div key={producerId} className='w-80 h-60 bg-black'>
+                    <ReactPlayer
+                      url={streams.video || streams.audio}
+                      playing
+                      width="100%"
+                      height="100%"
+                      // Only mute if it's a video stream
+                      muted={!!streams.video}
+                    />
+                  </div>
+                ))} */}
+                {Object.entries(consumers).map(([producerId, streams]) => {
+                  console.log(streams);
+
+                  return (
+
+                    <div key={producerId} className='w-80 h-60 bg-black'>
+                      <video
+                        ref={videoRef => {
+                          if (videoRef && streams.video) {
+                            videoRef.srcObject = streams.video;
+                          }
+                        }}
+                        autoPlay
+                        muted={!!streams.video}
+                        width="100%"
+                        height="100%"
+                      />
+                    </div>
+                  )
+                })}
               </div>
             </div>
             <button

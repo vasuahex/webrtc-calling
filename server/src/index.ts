@@ -16,6 +16,7 @@ import {
     Producer,
     Consumer,
     RtpCodecCapability,
+    WorkerLogTag,
 } from 'mediasoup/node/lib/types';
 import Helpers from "./utils/Helpers"
 const app = express();
@@ -45,22 +46,60 @@ const io = new Server(httpsServer, {
 
 app.use(cors());
 
-const mediaCodecs: RtpCodecCapability[] = [
-    {
-        kind: 'audio',
-        mimeType: 'audio/opus',
-        clockRate: 48000,
-        channels: 2, // Stereo audio
-    },
-    {
-        kind: 'video',
-        mimeType: 'video/VP8',
-        clockRate: 90000,
-        parameters: {
-            'x-google-start-bitrate': 1000,
+const mediaCodecs: RtpCodecCapability[] =
+    [
+        {
+            kind: 'audio',
+            mimeType: 'audio/opus',
+            clockRate: 48000,
+            channels: 2
         },
-    },
-];
+        {
+            kind: 'video',
+            mimeType: 'video/VP8',
+            clockRate: 90000,
+            parameters:
+            {
+                'x-google-start-bitrate': 1000
+            }
+        },
+        {
+            kind: 'video',
+            mimeType: 'video/VP9',
+            clockRate: 90000,
+            parameters:
+            {
+                'profile-id': 2,
+                'x-google-start-bitrate': 1000
+            }
+        },
+        {
+            kind: 'video',
+            mimeType: 'video/h264',
+            clockRate: 90000,
+            parameters:
+            {
+                'packetization-mode': 1,
+                'profile-level-id': '4d0032',
+                'level-asymmetry-allowed': 1,
+                'x-google-start-bitrate': 1000
+            }
+        },
+        {
+            kind: 'video',
+            mimeType: 'video/h264',
+            clockRate: 90000,
+            parameters:
+            {
+                'packetization-mode': 1,
+                'profile-level-id': '42e01f',
+                'level-asymmetry-allowed': 1,
+                'x-google-start-bitrate': 1000
+            }
+        }
+    ]
+
+
 
 let worker: Worker;
 let router: Router;
@@ -70,7 +109,7 @@ const rooms: {
         peers: {
             [peerId: string]: {
                 socket: any;
-                transports: Transport[];
+                transports: { transport: Transport, direction: 'send' | 'recv' }[];
                 producers: Producer[];
                 consumers: Consumer[];
             };
@@ -83,7 +122,14 @@ async function createWorkerFunc() {
         logLevel: 'warn',
         rtcMinPort: 10000,
         rtcMaxPort: 10100,
+        logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
+        disableLiburing: false
     });
+
+    worker.on('died', () => {
+        console.error('mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid)
+        setTimeout(() => process.exit(1), 2000)
+    })
     console.log(`Worker pid ${worker.pid}`);
     return worker;
 }
@@ -96,12 +142,15 @@ async function createWebRtcTransport(router: Router) {
     return router.createWebRtcTransport({
         listenIps: [
             {
-                ip: Helpers.getLocalIp(),
-                // ip: '0.0.0.0',
-                announcedIp: await Helpers.getPublicIp()
-                // announcedIp: '127.0.0.1', // Change this to your server's public IP
+                // ip: Helpers.getLocalIp(),
+                ip: '0.0.0.0',
+                // announcedIp: await Helpers.getPublicIp(),
+                announcedIp: '127.0.0.1', // Change this to your server's public IP
             },
         ],
+        // maxIncomingBitrate: 1500000,
+        initialAvailableOutgoingBitrate: 1000000,
+        maxSctpMessageSize: 262144,
         enableUdp: true,
         enableTcp: true,
         preferUdp: true,
@@ -109,7 +158,7 @@ async function createWebRtcTransport(router: Router) {
 }
 
 io.on('connection', async (socket) => {
-    console.log('New connection', socket.id);
+    // console.log('New connection', socket.id);
     socket.emit('connection-success', {
         socketId: socket.id,
     });
@@ -170,7 +219,7 @@ io.on('connection', async (socket) => {
 
     });
 
-    socket.on('createWebRtcTransport', async ({ roomId }, callback) => {
+    socket.on('createWebRtcTransport', async ({ roomId, direction }, callback) => {
         const router = rooms[roomId]?.router;
         if (!router) {
             callback({ params: { error: 'Room not found' } });
@@ -188,7 +237,7 @@ io.on('connection', async (socket) => {
                     consumers: [],
                 };
             }
-            rooms[roomId].peers[socket.id].transports.push(transport);
+            rooms[roomId].peers[socket.id].transports.push({ transport, direction });
 
             transport.on('dtlsstatechange', (dtlsState) => {
                 if (dtlsState === 'closed') {
@@ -214,33 +263,34 @@ io.on('connection', async (socket) => {
         }
     });
 
+
     socket.on('connectTransport', async ({ roomId, transportId, dtlsParameters }, callback) => {
         try {
 
-            const transport = rooms[roomId]?.peers[socket.id].transports.find((t) => t.id === transportId);
+            const transportObject = rooms[roomId]?.peers[socket.id].transports.find((t) => t.transport.id === transportId);
 
-            if (!transport) {
+            if (!transportObject) {
                 callback({ error: 'Transport not found' });
                 return;
             }
 
-            await transport.connect({ dtlsParameters });
+            await transportObject.transport.connect({ dtlsParameters });
             callback();
         } catch (error: any) {
             console.log(218, error);
         }
     });
 
-    socket.on('produce', async ({ roomId, transportId, kind, rtpParameters }, callback) => {
+    socket.on('produce', async ({ roomId, transportId, kind, rtpParameters, appData }, callback) => {
         const router = rooms[roomId]?.router;
-        const transport = rooms[roomId]?.peers[socket.id].transports.find((t) => t.id === transportId);
+        const transportObject = rooms[roomId]?.peers[socket.id].transports.find((t) => t.transport.id === transportId);
 
-        if (!router || !transport) {
+        if (!router || !transportObject) {
             callback({ error: 'Room or Transport not found' });
             return;
         }
 
-        const producer = await transport.produce({ kind, rtpParameters });
+        const producer = await transportObject.transport.produce({ kind, rtpParameters, appData });
         rooms[roomId].peers[socket.id].producers.push(producer);
 
         producer.on('transportclose', () => {
@@ -253,16 +303,15 @@ io.on('connection', async (socket) => {
         socket.to(roomId).emit('newProducer', {
             producerId: producer.id,
             producerSocketId: socket.id,
-            roomId
+            roomId,
+            kind
         });
     });
 
     socket.on('consume', async ({ roomId, producerId, rtpCapabilities }, callback) => {
         try {
             const router = rooms[roomId]?.router;
-            const producer = Object.values(rooms[roomId].peers).flatMap(
-                (peer) => peer.producers
-            ).find((p) => p.id === producerId);
+            const producer = Object.values(rooms[roomId].peers).flatMap((peer) => peer.producers).find((p) => p.id === producerId);
 
             if (!router || !producer) {
                 callback({ error: 'Room or Producer not found' });
@@ -270,18 +319,22 @@ io.on('connection', async (socket) => {
             }
 
             if (!router.canConsume({ producerId, rtpCapabilities })) {
-                callback({ error: 'Can\'t consume' });
+                callback({ error: "Can't consume" });
                 return;
             }
 
-            const transport = rooms[roomId].peers[socket.id].transports[0]; // Assuming the first transport is for consuming
+            const recvTransport = rooms[roomId].peers[socket.id].transports.find(t => t.direction === 'recv');
 
-            const consumer = await transport.consume({
+            if (!recvTransport) {
+                callback({ error: 'Receive transport not found' });
+                return;
+            }
+
+            const consumer = await recvTransport.transport.consume({
                 producerId,
                 rtpCapabilities,
                 paused: true,
             });
-
             rooms[roomId].peers[socket.id].consumers.push(consumer);
 
             consumer.on('transportclose', () => {
@@ -300,6 +353,7 @@ io.on('connection', async (socket) => {
                 rtpParameters: consumer.rtpParameters,
             });
         } catch (error: any) {
+            callback({ error: error.message });
             console.log("252", error);
         }
 
@@ -310,7 +364,7 @@ io.on('connection', async (socket) => {
             const consumer = rooms[roomId]?.peers[socket.id].consumers.find(
                 (c) => c.id === consumerId
             );
- 
+
             if (!consumer) {
                 callback({ params: { error: 'Consumer not found' } });
                 return;
@@ -330,7 +384,7 @@ io.on('connection', async (socket) => {
             console.log('User left room', socket.id);
 
             // Close transports, producers, and consumers
-            rooms[roomId].peers[socket.id].transports.forEach((transport) => transport.close());
+            rooms[roomId].peers[socket.id].transports.forEach((transport) => transport.transport.close());
             rooms[roomId].peers[socket.id].producers.forEach((producer) => producer.close());
             rooms[roomId].peers[socket.id].consumers.forEach((consumer) => consumer.close());
 
@@ -348,7 +402,7 @@ io.on('connection', async (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log('Client disconnected', socket.id);
+        // console.log('Client disconnected', socket.id);
         for (const roomId in rooms) {
             if (rooms[roomId].peers[socket.id]) {
                 socket.emit('leaveRoom', { roomId });

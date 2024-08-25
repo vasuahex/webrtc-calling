@@ -23,8 +23,7 @@
     "moment": "^2.30.1",
     "morgan": "^1.10.0",
     "simple-peer": "^9.11.1",
-    "socket.io": "^4.7.5",
-    "wrtc": "^0.4.7"
+    "socket.io": "^4.7.5"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.7",

@@ -8,9 +8,9 @@ const ifaces = os.networkInterfaces()
 
 const getLocalIp = () => {
     let localIp = '127.0.0.1'
-    Object.keys(ifaces)?.forEach((ifname: any) => {
-        if (ifaces[ifname]) {
-            for (const iface of ifaces[ifname]) {
+    Object.keys(ifaces).forEach((ifname: any) => {
+        if (ifaces[ifname] !== undefined) {
+            for (const iface of ifaces[ifname]!) {
                 // Ignore IPv6 and 127.0.0.1
                 if (iface.family !== 'IPv4' || iface.internal !== false) {
                     continue

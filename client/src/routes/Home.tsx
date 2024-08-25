@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, CSSProperties } from 'react';
 import { Device } from 'mediasoup-client';
-import MediaSoupTypes, { RtpCapabilities, Transport, Producer, Consumer } from 'mediasoup-client/lib/types';
+import MediaSoupTypes, { RtpCapabilities, Transport, Producer } from 'mediasoup-client/lib/types';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'react-toastify';
 import { RingLoader } from 'react-spinners';
@@ -62,7 +62,7 @@ const App: React.FC = () => {
       transports: ['websocket'],
     });
 
-    socketRef.current.on('connection-success', ({ socketId }) => {
+    socketRef.current.on('connection-success', () => {
       setIsConnected(true);
     });
 
@@ -76,7 +76,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!socketRef.current) return;
 
-    socketRef.current.on('newProducer', async ({ producerId, producerSocketId, roomId, kind }) => {
+    socketRef.current.on('newProducer', async ({ producerId, roomId }) => {
       if (deviceRef.current && roomId) {
         await createRecvTransport(producerId, deviceRef.current, roomId);
       } else {
@@ -178,23 +178,26 @@ const App: React.FC = () => {
 
       const transport = device!.createSendTransport(params);
 
-      transport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+      transport.on('connect', async ({ dtlsParameters }, callback) => {
         socketRef.current!.emit('connectTransport',
           { roomId, transportId: transport.id, dtlsParameters }, callback);
       });
 
       transport.on('produce', async (parameters, callback, errback) => {
+        try {
+          socketRef.current!.emit('produce', {
+            roomId,
+            transportId: transport.id,
+            kind: parameters.kind,
+            rtpParameters: parameters.rtpParameters,
+            appData: parameters.appData
+          }, ({ id }: { id: string }) => {
 
-        socketRef.current!.emit('produce', {
-          roomId,
-          transportId: transport.id,
-          kind: parameters.kind,
-          rtpParameters: parameters.rtpParameters,
-          appData: parameters.appData
-        }, ({ id }: { id: string }) => {
-
-          callback({ id });
-        });
+            callback({ id });
+          });
+        } catch (error: any) {
+          errback(error)
+        }
       });
       await createProducers(transport);
 
@@ -226,12 +229,12 @@ const App: React.FC = () => {
     const audioTrack = localStream.getAudioTracks()[0];
     const videoTrack = localStream.getVideoTracks()[0];
     let producer: Producer | undefined;
-    if (audioTrack) {
-      producer = await transport.produce({ track: audioTrack });
-    }
 
     if (videoTrack) {
       producer = await transport.produce({ track: videoTrack, codecOptions: params.codecOptions, encodings: params.encodings });
+    }
+    if (audioTrack) {
+      producer = await transport.produce({ track: audioTrack });
     }
     if (producer) {
       producer.on('trackended', () => {
@@ -262,7 +265,7 @@ const App: React.FC = () => {
 
       const transport = currentDevice.createRecvTransport(params);
 
-      transport.on('connect', ({ dtlsParameters }, callback, errback) => {
+      transport.on('connect', ({ dtlsParameters }, callback) => {
         socketRef.current!.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters }, callback);
       });
       // create recv tranport completed.

@@ -21,7 +21,6 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const cors_1 = __importDefault(require("cors"));
 require("dotenv/config");
-const Helpers_1 = __importDefault(require("./utils/Helpers"));
 const app = (0, express_1.default)();
 process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err);
@@ -121,8 +120,8 @@ function createWebRtcTransport(router) {
         return router.createWebRtcTransport({
             listenIps: [
                 {
-                    ip: Helpers_1.default.getLocalIp(),
-                    announcedIp: yield Helpers_1.default.getPublicIp(),
+                    ip: '0.0.0.0',
+                    announcedIp: '127.0.0.1',
                 },
             ],
             initialAvailableOutgoingBitrate: 1000000,

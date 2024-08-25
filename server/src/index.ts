@@ -149,10 +149,10 @@ async function createWebRtcTransport(router: Router) {
     return router.createWebRtcTransport({
         listenIps: [
             {
-                ip: Helpers.getLocalIp(),
-                // ip: '0.0.0.0',
-                announcedIp: await Helpers.getPublicIp(),
-                // announcedIp: '127.0.0.1', // Change this to your server's public IP
+                // ip: Helpers.getLocalIp(),
+                ip: '0.0.0.0',
+                // announcedIp: await Helpers.getPublicIp(),
+                announcedIp: '127.0.0.1', // Change this to your server's public IP
             },
         ],
         // maxIncomingBitrate: 1500000,

@@ -1,6 +1,7 @@
 
 import express from 'express';
 import https from 'https';
+import http from 'http';
 import { Server } from 'socket.io';
 import { createWorker } from 'mediasoup';
 import fs from 'fs';
@@ -21,21 +22,27 @@ import {
 import Helpers from "./utils/Helpers"
 const app = express();
 
-
-const privatePath = path.join(__dirname, '../whatsapp-clone-app-privateKey.key');
-const crtPath = path.join(__dirname, '../whatsapp-clone-app.crt');
-const privateKey = fs.readFileSync(privatePath, 'utf8');
-const certificate = fs.readFileSync(crtPath, 'utf8');
-const credentials = { key: privateKey, cert: certificate };
-
 // Handle uncaught Exception
 process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err);
     console.log(`shutting down the server for handling uncaught Exception`);
     process.exit(1);
 });
+const createServer = (environment: string) => {
+    if (environment === 'development') {
+        const privatePath = path.join(__dirname, '../whatsapp-clone-app-privateKey.key');
+        const crtPath = path.join(__dirname, '../whatsapp-clone-app.crt');
+        const privateKey = fs.readFileSync(privatePath, 'utf8');
+        const certificate = fs.readFileSync(crtPath, 'utf8');
+        const credentials = { key: privateKey, cert: certificate };
+        return https.createServer(credentials, app);
+    }
+    if (environment === 'production') {
+        return http.createServer(app)
+    }
+}
+const httpsServer = createServer(process.env.NODE_ENV as string)
 
-const httpsServer = https.createServer(credentials, app);
 const io = new Server(httpsServer, {
     cors: {
         origin: '*',
@@ -142,10 +149,10 @@ async function createWebRtcTransport(router: Router) {
     return router.createWebRtcTransport({
         listenIps: [
             {
-                // ip: Helpers.getLocalIp(),
-                ip: '0.0.0.0',
-                // announcedIp: await Helpers.getPublicIp(),
-                announcedIp: '127.0.0.1', // Change this to your server's public IP
+                ip: Helpers.getLocalIp(),
+                // ip: '0.0.0.0',
+                announcedIp: await Helpers.getPublicIp(),
+                // announcedIp: '127.0.0.1', // Change this to your server's public IP
             },
         ],
         // maxIncomingBitrate: 1500000,
@@ -411,6 +418,6 @@ io.on('connection', async (socket) => {
     });
 });
 const PORT = process.env.PORT || 3000;
-httpsServer.listen(PORT, () => {
+httpsServer?.listen(PORT, () => {
     console.log(`Server is running on https://localhost:${PORT}`);
 });

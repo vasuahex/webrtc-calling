@@ -58,7 +58,7 @@ const App: React.FC = () => {
   // const remoteVideosRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    socketRef.current = io('https://localhost:5000', {
+    socketRef.current = io(import.meta.env.VITE_API_SOCKET_URL, {
       transports: ['websocket'],
     });
 

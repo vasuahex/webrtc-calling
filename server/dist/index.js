@@ -48,6 +48,7 @@ const io = new socket_io_1.Server(httpsServer, {
     },
 });
 app.use((0, cors_1.default)());
+const workers = [];
 const mediaCodecs = [
     {
         kind: 'audio',
@@ -103,7 +104,7 @@ function createWorkerFunc() {
         worker = yield (0, mediasoup_1.createWorker)({
             logLevel: 'warn',
             rtcMinPort: 10000,
-            rtcMaxPort: 10100,
+            rtcMaxPort: 10200,
             logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
             disableLiburing: false
         });
@@ -111,6 +112,7 @@ function createWorkerFunc() {
             console.error('mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid);
             setTimeout(() => process.exit(1), 2000);
         });
+        workers.push(worker);
         console.log(`Worker pid ${worker.pid}`);
         return worker;
     });
@@ -210,6 +212,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             callback({
                 params: {
                     id: transport.id,
+                    appData: transport.appData,
                     iceParameters: transport.iceParameters,
                     iceCandidates: transport.iceCandidates,
                     dtlsParameters: transport.dtlsParameters,
@@ -217,7 +220,6 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             });
         }
         catch (err) {
-            console.error("err", err);
             callback({ params: { error: 'Failed to create transport' } });
         }
     }));
@@ -233,7 +235,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             callback();
         }
         catch (error) {
-            console.log(218, error);
+            callback({ error: error.message });
         }
     }));
     socket.on('produce', (_f, callback_4) => __awaiter(void 0, [_f, callback_4], void 0, function* ({ roomId, transportId, kind, rtpParameters, appData }, callback) {
@@ -244,7 +246,8 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             callback({ error: 'Room or Transport not found' });
             return;
         }
-        const producer = yield transportObject.transport.produce({ kind, rtpParameters, appData });
+        const producer = yield transportObject.transport.produce({ kind, rtpParameters, appData, });
+        console.log(`New producer created in room ${roomId}: ${producer.id}, kind: ${kind}`);
         rooms[roomId].peers[socket.id].producers.push(producer);
         producer.on('transportclose', () => {
             producer.close();
@@ -256,12 +259,14 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             roomId,
             kind
         });
+        console.log(`NewProducer event emitted for producer ${producer.id} in room ${roomId}`);
     }));
     socket.on('consume', (_j, callback_5) => __awaiter(void 0, [_j, callback_5], void 0, function* ({ roomId, producerId, rtpCapabilities }, callback) {
         var _k;
         try {
             const router = (_k = rooms[roomId]) === null || _k === void 0 ? void 0 : _k.router;
             const producer = Object.values(rooms[roomId].peers).flatMap((peer) => peer.producers).find((p) => p.id === producerId);
+            console.log(`New consumer created in room ${roomId} for producer ${producerId}`);
             if (!router || !producer) {
                 callback({ error: 'Room or Producer not found' });
                 return;
@@ -280,6 +285,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
                 rtpCapabilities,
                 paused: true,
             });
+            console.log(consumer.id, "consume");
             rooms[roomId].peers[socket.id].consumers.push(consumer);
             consumer.on('transportclose', () => {
                 consumer.close();
@@ -297,13 +303,13 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
         }
         catch (error) {
             callback({ error: error.message });
-            console.log("252", error);
         }
     }));
     socket.on('resumeConsumer', (_l, callback_6) => __awaiter(void 0, [_l, callback_6], void 0, function* ({ roomId, consumerId }, callback) {
         var _m;
         try {
             const consumer = (_m = rooms[roomId]) === null || _m === void 0 ? void 0 : _m.peers[socket.id].consumers.find((c) => c.id === consumerId);
+            console.log(consumer === null || consumer === void 0 ? void 0 : consumer.id, "resume");
             if (!consumer) {
                 callback({ params: { error: 'Consumer not found' } });
                 return;
@@ -312,23 +318,25 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             callback({ params: "success" });
         }
         catch (error) {
-            console.log(310, error);
             callback({ params: { error: error.message } });
             return;
         }
     }));
-    socket.on('leaveRoom', ({ roomId }) => {
-        if (rooms[roomId] && rooms[roomId].peers[socket.id]) {
-            console.log('User left room', socket.id);
-            rooms[roomId].peers[socket.id].transports.forEach((transport) => transport.transport.close());
-            rooms[roomId].peers[socket.id].producers.forEach((producer) => producer.close());
-            rooms[roomId].peers[socket.id].consumers.forEach((consumer) => consumer.close());
-            delete rooms[roomId].peers[socket.id];
-            socket.to(roomId).emit('peerLeft', { peerId: socket.id });
+    const handlePeerLeave = (roomId, socketId) => {
+        if (rooms[roomId] && rooms[roomId].peers[socketId]) {
+            console.log('User left room', socketId);
+            rooms[roomId].peers[socketId].transports.forEach((transport) => transport.transport.close());
+            rooms[roomId].peers[socketId].producers.forEach((producer) => producer.close());
+            rooms[roomId].peers[socketId].consumers.forEach((consumer) => consumer.close());
+            delete rooms[roomId].peers[socketId];
+            socket.to(roomId).emit('peerLeft', { peerId: socketId });
             if (Object.keys(rooms[roomId].peers).length === 0) {
                 delete rooms[roomId];
             }
         }
+    };
+    socket.on('leaveRoom', ({ roomId }) => {
+        handlePeerLeave(roomId, socket.id);
     });
     socket.on('disconnect', () => {
         for (const roomId in rooms) {

@@ -21,7 +21,7 @@ import {
 } from 'mediasoup/node/lib/types';
 import Helpers from "./utils/Helpers"
 const app = express();
-
+import os from "os"
 // Handle uncaught Exception
 process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err);
@@ -105,10 +105,10 @@ const mediaCodecs: RtpCodecCapability[] =
             }
         }
     ]
+const numCPUs = os.cpus().length;
 
 
-
-let worker: Worker;
+// let workers: Worker[];
 let router: Router;
 const rooms: {
     [roomId: string]: {
@@ -123,24 +123,38 @@ const rooms: {
         };
     };
 } = {};
-
-async function createWorkerFunc() {
-    worker = await createWorker({
-        logLevel: 'warn',
-        rtcMinPort: 10000,
-        rtcMaxPort: 10200,
-        logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
-        disableLiburing: false
-    });
-
-    worker.on('died', () => {
-        console.error('mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid)
-        setTimeout(() => process.exit(1), 2000)
-    })
-    workers.push(worker);
-    console.log(`Worker pid ${worker.pid}`);
+let nextWorkerIndex = 0;
+function getNextWorker() {
+    // Simple round-robin
+    const worker = workers[nextWorkerIndex];
+    nextWorkerIndex = (nextWorkerIndex + 1) % workers.length;
     return worker;
 }
+async function createWorkerFunc() {
+    console.log(numCPUs);
+    
+    for (let i = 0; i < numCPUs; i++) {
+        let worker = await createWorker({
+            logLevel: 'warn',
+            rtcMinPort: 10000,
+            rtcMaxPort: 10200,
+            logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
+            disableLiburing: false
+        });
+
+        worker.on('died', () => {
+            console.error('mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid)
+            setTimeout(() => process.exit(1), 2000)
+        })
+        workers.push(worker);
+        console.log(`Worker pid ${worker.pid}`);
+    }
+    // return worker;
+}
+createWorkerFunc().then(() => {
+    console.log(`workers created.`);
+
+})
 async function createWebRtcTransport(router: Router) {
     return router.createWebRtcTransport({
         listenIps: [
@@ -168,10 +182,10 @@ io.on('connection', async (socket) => {
     });
 
     socket.on('createRoom', async (callback) => {
-        if (!worker) {
-            worker = await createWorkerFunc();
-        }
-
+        // if (workers.length===0) {
+        //     worker = await createWorkerFunc();
+        // }
+        const worker = getNextWorker();
         router = await worker.createRouter({ mediaCodecs });
         const roomId = Math.random().toString(36).substring(2, 7);
         rooms[roomId] = {

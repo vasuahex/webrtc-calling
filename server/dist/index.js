@@ -22,6 +22,7 @@ const path_1 = __importDefault(require("path"));
 const cors_1 = __importDefault(require("cors"));
 require("dotenv/config");
 const app = (0, express_1.default)();
+const os_1 = __importDefault(require("os"));
 process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err);
     console.log(`shutting down the server for handling uncaught Exception`);
@@ -96,27 +97,38 @@ const mediaCodecs = [
         }
     }
 ];
-let worker;
+const numCPUs = os_1.default.cpus().length;
 let router;
 const rooms = {};
+let nextWorkerIndex = 0;
+function getNextWorker() {
+    const worker = workers[nextWorkerIndex];
+    nextWorkerIndex = (nextWorkerIndex + 1) % workers.length;
+    return worker;
+}
 function createWorkerFunc() {
     return __awaiter(this, void 0, void 0, function* () {
-        worker = yield (0, mediasoup_1.createWorker)({
-            logLevel: 'warn',
-            rtcMinPort: 10000,
-            rtcMaxPort: 10200,
-            logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
-            disableLiburing: false
-        });
-        worker.on('died', () => {
-            console.error('mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid);
-            setTimeout(() => process.exit(1), 2000);
-        });
-        workers.push(worker);
-        console.log(`Worker pid ${worker.pid}`);
-        return worker;
+        console.log(numCPUs);
+        for (let i = 0; i < numCPUs; i++) {
+            let worker = yield (0, mediasoup_1.createWorker)({
+                logLevel: 'warn',
+                rtcMinPort: 10000,
+                rtcMaxPort: 10200,
+                logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
+                disableLiburing: false
+            });
+            worker.on('died', () => {
+                console.error('mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid);
+                setTimeout(() => process.exit(1), 2000);
+            });
+            workers.push(worker);
+            console.log(`Worker pid ${worker.pid}`);
+        }
     });
 }
+createWorkerFunc().then(() => {
+    console.log(`workers created.`);
+});
 function createWebRtcTransport(router) {
     return __awaiter(this, void 0, void 0, function* () {
         return router.createWebRtcTransport({
@@ -139,9 +151,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
         socketId: socket.id,
     });
     socket.on('createRoom', (callback) => __awaiter(void 0, void 0, void 0, function* () {
-        if (!worker) {
-            worker = yield createWorkerFunc();
-        }
+        const worker = getNextWorker();
         router = yield worker.createRouter({ mediaCodecs });
         const roomId = Math.random().toString(36).substring(2, 7);
         rooms[roomId] = {

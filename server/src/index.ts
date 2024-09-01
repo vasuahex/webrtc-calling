@@ -1,5 +1,5 @@
 
-import express from 'express';
+import express, { Request, Response } from 'express';
 import https from 'https';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -155,16 +155,16 @@ createWorkerFunc().then(() => {
     console.log(`workers created.`);
 
 })
-console.log("Helpers.getLocalIp()", Helpers.getLocalIp());
-Helpers.getPublicIp().then((ip) => console.log("Helpers.getPublicIp() : ", ip))
+console.log("Helpers.getPublicIp()", Helpers.getPublicIp());
+Helpers.getLocalIp().then((ip) => console.log("Helpers.getLocalIp() : ", ip))
 
 async function createWebRtcTransport(router: Router) {
     return router.createWebRtcTransport({
         listenIps: [
             {
-                ip: Helpers.getLocalIp(),
-                // ip: '0.0.0.0',
-                announcedIp: await Helpers.getPublicIp(),
+                ip: '0.0.0.0',
+                // announcedIp: await Helpers.getPublicIp(), 27.6.44.106
+                announcedIp: Helpers.getPublicIp(),
                 // announcedIp: '127.0.0.1',
                 // Change this to your server's public IP
             },
@@ -185,9 +185,6 @@ io.on('connection', async (socket) => {
     });
 
     socket.on('createRoom', async (callback) => {
-        // if (workers.length===0) {
-        //     worker = await createWorkerFunc();
-        // }
         const worker = getNextWorker();
         router = await worker.createRouter({ mediaCodecs });
         const roomId = Math.random().toString(36).substring(2, 7);
@@ -433,11 +430,18 @@ io.on('connection', async (socket) => {
         }
     });
 });
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
     res.json({ message: "server started successfully" })
 })
 
-const PORT = process.env.PORT || 3000;
-httpsServer?.listen(PORT, () => {
-    console.log(`Server is running on https://localhost:${PORT}`);
+
+const port = process.env.PORT || 3000;
+
+let ip = process.env.IP as any
+const newServer = httpsServer?.listen(port, ip, () => {
+    console.log(`server is running on port http://${ip}:${port}`);
 });
+
+// httpsServer?.listen(port, () => {
+//     console.log(`Server is running on https://localhost:${PORT}`);
+// });

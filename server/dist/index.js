@@ -114,9 +114,8 @@ function createWorkerFunc() {
             let worker = yield (0, mediasoup_1.createWorker)({
                 logLevel: 'warn',
                 rtcMinPort: 10000,
-                rtcMaxPort: 10200,
+                rtcMaxPort: 10100 + i * 100,
                 logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
-                disableLiburing: false
             });
             worker.on('died', () => {
                 console.error('mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid);
@@ -130,15 +129,15 @@ function createWorkerFunc() {
 createWorkerFunc().then(() => {
     console.log(`workers created.`);
 });
-console.log("Helpers.getLocalIp()", Helpers_1.default.getLocalIp());
-Helpers_1.default.getPublicIp().then((ip) => console.log("Helpers.getPublicIp() : ", ip));
+console.log("Helpers.getPublicIp()", Helpers_1.default.getPublicIp());
+Helpers_1.default.getLocalIp().then((ip) => console.log("Helpers.getLocalIp() : ", ip));
 function createWebRtcTransport(router) {
     return __awaiter(this, void 0, void 0, function* () {
         return router.createWebRtcTransport({
             listenIps: [
                 {
-                    ip: Helpers_1.default.getLocalIp(),
-                    announcedIp: yield Helpers_1.default.getPublicIp(),
+                    ip: '0.0.0.0',
+                    announcedIp: Helpers_1.default.getPublicIp(),
                 },
             ],
             initialAvailableOutgoingBitrate: 1000000,
@@ -357,8 +356,9 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
 app.get('/', (req, res) => {
     res.json({ message: "server started successfully" });
 });
-const PORT = process.env.PORT || 3000;
-httpsServer === null || httpsServer === void 0 ? void 0 : httpsServer.listen(PORT, () => {
-    console.log(`Server is running on https://localhost:${PORT}`);
+const port = process.env.PORT || 3000;
+let ip = process.env.IP;
+const newServer = httpsServer === null || httpsServer === void 0 ? void 0 : httpsServer.listen(port, ip, () => {
+    console.log(`server is running on port http://${ip}:${port}`);
 });
 //# sourceMappingURL=index.js.map

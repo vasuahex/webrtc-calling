@@ -15,7 +15,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const os_1 = __importDefault(require("os"));
 const axios_1 = __importDefault(require("axios"));
 const ifaces = os_1.default.networkInterfaces();
-const getLocalIp = () => {
+const getLocalIp = () => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const response = yield axios_1.default.get('https://ifconfig.me');
+        return response.data;
+    }
+    catch (error) {
+        console.error('Error fetching public IP:', error);
+        return null;
+    }
+});
+const getPublicIp = () => {
     let localIp = '127.0.0.1';
     Object.keys(ifaces).forEach((ifname) => {
         if (ifaces[ifname] !== undefined) {
@@ -30,16 +40,6 @@ const getLocalIp = () => {
     });
     return localIp;
 };
-const getPublicIp = () => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const response = yield axios_1.default.get('https://ifconfig.me');
-        return response.data;
-    }
-    catch (error) {
-        console.error('Error fetching public IP:', error);
-        return null;
-    }
-});
 exports.default = {
     getLocalIp,
     getPublicIp

@@ -35,27 +35,26 @@ const params = {
     videoGoogleStartBitrate: 1000
   }
 }
+interface Consumer {
+  peerId: string;
+  consumerId: string;
+  combinedStream?: MediaStream;
+}
 const App: React.FC = () => {
   const [isInRoom, setIsInRoom] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const [roomId, setRoomId] = useState<string>(''); // room id from socket create room
   const [joinRoomId, setJoinRoomId] = useState<string>(''); // room id from input field
-  // const [device, setDevice] = useState<MediaSoupTypes.Device | null>(null);
-  const deviceRef = useRef<MediaSoupTypes.Device | null>(null);
-  // const [rtpCapabilities, setRtpCapabilities] = useState<any>(null);
-  // const [producerTransport, setProducerTransport] = useState<any>(null);
-  // const [consumerTransports, setConsumerTransports] = useState<any[]>([]);
-  // const [audioProducer, setAudioProducer] = useState<any>(null);
-  // const [videoProducer, setVideoProducer] = useState<any>(null);
-  const [consumers, setConsumers] = useState<{ [producerId: string]: { combinedStream?: MediaStream } }>({});
+  // const [consumers, setConsumers] = useState<{ [producerId: string]: { combinedStream?: MediaStream } }>({});
+  const [consumers, setConsumers] = useState<{ [consumerId: string]: Consumer }>({});
+
   // const [consumers, setConsumers] = useState<{ [producerId: string]: { audio?: MediaStream, video?: MediaStream } }>({});
-  // const [consumers, setConsumers] = useState<any>({});
+  const deviceRef = useRef<MediaSoupTypes.Device | null>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const socketRef = useRef<Socket | null>(null);
   const [localStream, setLocalstream] = useState<MediaStream | null>(null);
-  // const remoteVideosRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     socketRef.current = io(import.meta.env.VITE_API_SOCKET_URL, {
@@ -65,20 +64,45 @@ const App: React.FC = () => {
     socketRef.current.on('connection-success', () => {
       setIsConnected(true);
     });
-
+    socketRef.current.on("disconnect", () => {
+      console.log("calling disconnect");
+      handleDisconnectLeave();
+    })
+    socketRef.current.on('peerLeft', ({ peerId }) => {
+      console.log(`Peer ${peerId} left the room`);
+      removeConsumer(peerId);
+    });
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
+        socketRef.current.off('peerLeft');
       }
     };
   }, []);
 
+  const removeConsumer = (peerId: string) => {
+    setConsumers((prevConsumers) => {
+      const newConsumers = { ...prevConsumers };
+      Object.keys(newConsumers).forEach((consumerId) => {
+        if (newConsumers[consumerId].peerId === peerId) {
+          if (newConsumers[consumerId].combinedStream) {
+            newConsumers[consumerId].combinedStream.getTracks().forEach(track => track.stop());
+          }
+          delete newConsumers[consumerId];
+        }
+      });
+      return newConsumers;
+    });
+  };
+
   useEffect(() => {
     if (!socketRef.current) return;
 
-    socketRef.current.on('newProducer', async ({ producerId, roomId }) => {
+    socketRef.current.on('newProducer', async ({ producerId, roomId, producerSocketId }) => {
       if (deviceRef.current && roomId) {
-        await createRecvTransport(producerId, deviceRef.current, roomId);
+        console.log(`Received newProducer event for producer ${producerId} in room ${roomId}`);
+
+        await createRecvTransport(producerId, deviceRef.current, roomId, producerSocketId);
       } else {
         toast.error("Device not set when trying to create receive transport", { position: "top-left" })
       }
@@ -87,26 +111,11 @@ const App: React.FC = () => {
       toast.info(`user joined the room: ${peerId}`, { position: "top-left" })
     });
 
-    socketRef.current.on('peerLeft', ({ peerId }) => {
-      setConsumers((prevConsumers) => {
-        // Create a new object without the consumers associated with the peerId
-        const newConsumers = { ...prevConsumers };
 
-        // Remove any entries where the producerId matches the peerId
-        for (const producerId in newConsumers) {
-          if (producerId === peerId) {
-            delete newConsumers[producerId];
-          }
-        }
-
-        return newConsumers;
-      });
-    });
 
     return () => {
       if (socketRef.current) {
         socketRef.current.off('newProducer');
-        socketRef.current.off('peerLeft');
       }
     };
   }, [socketRef.current]);
@@ -158,7 +167,7 @@ const App: React.FC = () => {
 
         // Create receive transports for existing producers
         for (const producer of existingProducers) {
-          await createRecvTransport(producer.producerId, device, joinRoomId);
+          await createRecvTransport(producer.producerId, device, joinRoomId, producer.producerSocketId);
         }
       } catch (error) {
         setIsLoading(false)
@@ -175,12 +184,11 @@ const App: React.FC = () => {
         toast.error(`${params.error}`, { position: "top-left" })
         return;
       }
-
+      // through which audio/video transfers. (medium)
       const transport = device!.createSendTransport(params);
 
       transport.on('connect', async ({ dtlsParameters }, callback) => {
-        socketRef.current!.emit('connectTransport',
-          { roomId, transportId: transport.id, dtlsParameters }, callback);
+        socketRef.current!.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters }, callback);
       });
 
       transport.on('produce', async (parameters, callback, errback) => {
@@ -192,7 +200,6 @@ const App: React.FC = () => {
             rtpParameters: parameters.rtpParameters,
             appData: parameters.appData
           }, ({ id }: { id: string }) => {
-
             callback({ id });
           });
         } catch (error: any) {
@@ -233,9 +240,9 @@ const App: React.FC = () => {
     if (videoTrack) {
       producer = await transport.produce({ track: videoTrack, codecOptions: params.codecOptions, encodings: params.encodings });
     }
-    if (audioTrack) {
-      producer = await transport.produce({ track: audioTrack });
-    }
+    // if (audioTrack) {
+    //   producer = await transport.produce({ track: audioTrack });
+    // }
     if (producer) {
       producer.on('trackended', () => {
         console.log("track ended");
@@ -252,9 +259,8 @@ const App: React.FC = () => {
     setIsInRoom(true)
   };
 
-  const createRecvTransport = async (producerId: string, currentDevice: MediaSoupTypes.Device, roomId: string) => {
+  const createRecvTransport = async (producerId: string, currentDevice: MediaSoupTypes.Device, roomId: string, peerId: string) => {
     if (!socketRef.current || !currentDevice) return;
-
     socketRef.current.emit('createWebRtcTransport', { roomId, direction: 'recv' }, async ({ params }: any) => {
 
       if (params.error) {
@@ -269,11 +275,11 @@ const App: React.FC = () => {
         socketRef.current!.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters }, callback);
       });
       // create recv tranport completed.
-      await connectRecvTransport(transport, producerId, currentDevice, roomId);
+      await connectRecvTransport(transport, producerId, currentDevice, roomId, peerId);
     });
   };
 
-  const connectRecvTransport = async (transport: Transport, producerId: string, device: MediaSoupTypes.Device, roomId: string) => {
+  const connectRecvTransport = async (transport: Transport, producerId: string, device: MediaSoupTypes.Device, roomId: string, peerId: string) => {
     if (!socketRef.current || !roomId) return;
 
     socketRef.current.emit('consume', { roomId, producerId, rtpCapabilities: device!.rtpCapabilities },
@@ -287,17 +293,19 @@ const App: React.FC = () => {
         consumer.on('transportclose', () => {
           console.log("consumer transport closed.");
         })
-        const stream = new MediaStream(); // Create an empty MediaStream
-        stream.addTrack(consumer.track);
-
-        // Update the consumers state with the combined stream
-        setConsumers((prevConsumers) => ({
-          ...prevConsumers,
-          [producerId]: {
-            ...prevConsumers[producerId],
-            combinedStream: stream,
-          },
-        }));
+        const stream = new MediaStream([consumer.track]);
+        setConsumers((prevConsumers) => {
+          const newConsumers = {
+            ...prevConsumers,
+            [consumer.id]: {
+              peerId: peerId,
+              consumerId: consumer.id,
+              combinedStream: stream,
+            },
+          };
+          console.log(`Updated consumers state. Total consumers: ${Object.keys(newConsumers).length}`);
+          return newConsumers;
+        });
 
         socketRef.current!.emit('resumeConsumer', { roomId, consumerId: id }, ({ params }: any) => {
           if (params.error) {
@@ -305,28 +313,22 @@ const App: React.FC = () => {
             console.error(params.error);
             return;
           }
-          console.log(params);
         });
+
       }
     );
   };
 
-  const leaveRoom = () => {
-    if (!socketRef.current || !roomId) return;
-    socketRef.current.emit('leaveRoom', { roomId });
+  const handleDisconnectLeave = () => {
     setRoomId('');
-    deviceRef.current = null
-    // setProducerTransport(null);
-    // setConsumerTransports([]);
-    // setAudioProducer(null);
-    // setVideoProducer(null);
+    deviceRef.current = null;
     setConsumers({});
-    // Close local media stream
     if (localStream) {
-      const tracks = (localStream as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
+      localStream.getTracks().forEach(track => track.stop());
     }
-    setIsInRoom(false)
+    setLocalstream(null);
+    setIsInRoom(false);
+    socketRef.current!.emit('leaveRoom', { roomId });
   };
 
   return (
@@ -379,22 +381,23 @@ const App: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-lg font-semibold">Remote Videos</h3>
-                {Object.entries(consumers).map(([producerId, streams]) => (
-                  <div key={producerId} className='w-80 h-60 bg-black'>
+                {Object.entries(consumers).map(([consumerId, { combinedStream, peerId }]) => (
+                  <div key={consumerId} className='w-80 h-60 space-y-2 bg-black'>
                     <ReactPlayer
                       style={{ transform: "scaleX(-1)" }}
-                      url={streams.combinedStream}
+                      url={combinedStream}
                       playing
                       width="100%"
-                      height="100%"
+                      height="100%" 
                     />
+                    <p>Peer ID: {peerId}</p>
                   </div>
                 ))}
               </div>
             </div>
             <button
               className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-              onClick={leaveRoom}
+              onClick={handleDisconnectLeave}
             >
               Leave Room
             </button>

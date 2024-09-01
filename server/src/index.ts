@@ -437,11 +437,11 @@ app.get('/', (req: Request, res: Response) => {
 
 const port = process.env.PORT || 3000;
 
-let ip = process.env.IP as any
-const newServer = httpsServer?.listen(port, ip, () => {
-    console.log(`server is running on port http://${ip}:${port}`);
-});
-
-// httpsServer?.listen(port, () => {
-//     console.log(`Server is running on https://localhost:${PORT}`);
+// let ip = process.env.IP as any
+// const newServer = httpsServer?.listen(port, ip, () => {
+//     console.log(`server is running on port http://${ip}:${port}`);
 // });
+
+httpsServer?.listen(port, () => {
+    console.log(`Server is running on https://localhost:${PORT}`);
+});

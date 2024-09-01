@@ -86,9 +86,9 @@ const App: React.FC = () => {
     setConsumers((prevConsumers) => {
       const newConsumers = { ...prevConsumers };
       Object.keys(newConsumers).forEach((consumerId) => {
-        if (newConsumers[consumerId].peerId === peerId) {
+        if (newConsumers[consumerId].peerId === peerId && newConsumers[consumerId].combinedStream) {
           if (newConsumers[consumerId].combinedStream) {
-            newConsumers[consumerId].combinedStream.getTracks().forEach(track => track.stop());
+            newConsumers[consumerId].combinedStream!.getTracks().forEach(track => track.stop());
           }
           delete newConsumers[consumerId];
         }
@@ -235,7 +235,7 @@ const App: React.FC = () => {
       return;
     }
 
-    const audioTrack = localStream.getAudioTracks()[0];
+    // const audioTrack = localStream.getAudioTracks()[0];
     const videoTrack = localStream.getVideoTracks()[0];
     let producer: Producer | undefined;
 

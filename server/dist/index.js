@@ -21,6 +21,7 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const cors_1 = __importDefault(require("cors"));
 require("dotenv/config");
+const Helpers_1 = __importDefault(require("./utils/Helpers"));
 const app = (0, express_1.default)();
 const os_1 = __importDefault(require("os"));
 process.on("uncaughtException", (err) => {
@@ -129,13 +130,15 @@ function createWorkerFunc() {
 createWorkerFunc().then(() => {
     console.log(`workers created.`);
 });
+console.log("Helpers.getLocalIp()", Helpers_1.default.getLocalIp());
+Helpers_1.default.getPublicIp().then((ip) => console.log("Helpers.getPublicIp() : ", ip));
 function createWebRtcTransport(router) {
     return __awaiter(this, void 0, void 0, function* () {
         return router.createWebRtcTransport({
             listenIps: [
                 {
-                    ip: '0.0.0.0',
-                    announcedIp: '127.0.0.1',
+                    ip: Helpers_1.default.getLocalIp(),
+                    announcedIp: yield Helpers_1.default.getPublicIp(),
                 },
             ],
             initialAvailableOutgoingBitrate: 1000000,
@@ -351,6 +354,9 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
         }
     });
 }));
+app.get('/', (req, res) => {
+    res.json({ message: "server started successfully" });
+});
 const PORT = process.env.PORT || 3000;
 httpsServer === null || httpsServer === void 0 ? void 0 : httpsServer.listen(PORT, () => {
     console.log(`Server is running on https://localhost:${PORT}`);

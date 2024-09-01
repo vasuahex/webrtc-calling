@@ -132,7 +132,7 @@ function getNextWorker() {
 }
 async function createWorkerFunc() {
     console.log(numCPUs);
-    
+
     for (let i = 0; i < numCPUs; i++) {
         let worker = await createWorker({
             logLevel: 'warn',
@@ -155,14 +155,17 @@ createWorkerFunc().then(() => {
     console.log(`workers created.`);
 
 })
+console.log("Helpers.getLocalIp()", Helpers.getLocalIp());
+Helpers.getPublicIp().then((ip) => console.log("Helpers.getPublicIp() : ", ip))
+
 async function createWebRtcTransport(router: Router) {
     return router.createWebRtcTransport({
         listenIps: [
             {
-                // ip: Helpers.getLocalIp(),
-                ip: '0.0.0.0',
-                // announcedIp: await Helpers.getPublicIp(),
-                announcedIp: '127.0.0.1',
+                ip: Helpers.getLocalIp(),
+                // ip: '0.0.0.0',
+                announcedIp: await Helpers.getPublicIp(),
+                // announcedIp: '127.0.0.1',
                 // Change this to your server's public IP
             },
         ],
@@ -430,6 +433,9 @@ io.on('connection', async (socket) => {
         }
     });
 });
+app.get('/', (req, res) => {
+    res.json({ message: "server started successfully" })
+})
 
 const PORT = process.env.PORT || 3000;
 httpsServer?.listen(PORT, () => {

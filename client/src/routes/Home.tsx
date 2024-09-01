@@ -296,7 +296,23 @@ const App: React.FC = () => {
           console.log("consumer transport closed.");
         })
         const stream = new MediaStream([consumer.track]);
+        // setConsumers((prevConsumers) => {
+        //   const newConsumers = {
+        //     ...prevConsumers,
+        //     [consumer.id]: {
+        //       peerId: peerId,
+        //       consumerId: consumer.id,
+        //       combinedStream: stream,
+        //     },
+        //   };
+        //   console.log(`Updated consumers state. Total consumers: ${Object.keys(newConsumers).length}`);
+        //   return newConsumers;
+        // });
         setConsumers((prevConsumers) => {
+          if (prevConsumers[consumer.id]) {
+            console.log(`Consumer ${consumer.id} already exists. Skipping.`);
+            return prevConsumers;
+          }
           const newConsumers = {
             ...prevConsumers,
             [consumer.id]: {
@@ -308,7 +324,6 @@ const App: React.FC = () => {
           console.log(`Updated consumers state. Total consumers: ${Object.keys(newConsumers).length}`);
           return newConsumers;
         });
-
         socketRef.current!.emit('resumeConsumer', { roomId, consumerId: id }, ({ params }: any) => {
           if (params.error) {
             toast.error(params.error, { position: "top-left" })
@@ -342,8 +357,7 @@ const App: React.FC = () => {
           <div className="space-y-2">
             <button
               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              onClick={createRoom}
-            >
+              onClick={createRoom}>
               Create Room
             </button>
             <div className="flex space-x-2">

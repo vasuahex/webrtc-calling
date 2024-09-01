@@ -443,5 +443,5 @@ const port = process.env.PORT || 3000;
 // });
 
 httpsServer?.listen(port, () => {
-    console.log(`Server is running on https://localhost:${PORT}`);
+    console.log(`Server is running on https://localhost:${port}`);
 });

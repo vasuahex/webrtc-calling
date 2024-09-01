@@ -137,9 +137,9 @@ async function createWorkerFunc() {
         let worker = await createWorker({
             logLevel: 'warn',
             rtcMinPort: 10000,
-            rtcMaxPort: 10200,
+            rtcMaxPort: 10100 + i * 100,
             logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
-            disableLiburing: false
+            // disableLiburing: false
         });
 
         worker.on('died', () => {

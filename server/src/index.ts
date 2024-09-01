@@ -296,9 +296,7 @@ io.on('connection', async (socket) => {
         }
 
         const producer = await transportObject.transport.produce({ kind, rtpParameters, appData, });
-        console.log(`New producer created in room ${roomId}: ${producer.id}, kind: ${kind}`);
 
-        // let producersExist = rooms[roomId].peers[socket.id].producers.length > 0 ? true : false
         rooms[roomId].peers[socket.id].producers.push(producer);
 
         producer.on('transportclose', () => {
@@ -314,7 +312,6 @@ io.on('connection', async (socket) => {
             roomId,
             kind
         });
-        console.log(`NewProducer event emitted for producer ${producer.id} in room ${roomId}`);
 
 
     });
@@ -323,7 +320,6 @@ io.on('connection', async (socket) => {
         try {
             const router = rooms[roomId]?.router;
             const producer = Object.values(rooms[roomId].peers).flatMap((peer) => peer.producers).find((p) => p.id === producerId);
-            console.log(`New consumer created in room ${roomId} for producer ${producerId}`);
 
             if (!router || !producer) {
                 callback({ error: 'Room or Producer not found' });
@@ -347,7 +343,6 @@ io.on('connection', async (socket) => {
                 rtpCapabilities,
                 paused: true,
             });
-            console.log(consumer.id, "consume");
 
             rooms[roomId].peers[socket.id].consumers.push(consumer);
 
@@ -374,7 +369,6 @@ io.on('connection', async (socket) => {
     socket.on('resumeConsumer', async ({ roomId, consumerId }, callback) => {
         try {
             const consumer = rooms[roomId]?.peers[socket.id].consumers.find((c) => c.id === consumerId);
-            console.log(consumer?.id, "resume");
 
             if (!consumer) {
                 callback({ params: { error: 'Consumer not found' } });

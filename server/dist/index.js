@@ -247,7 +247,6 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             return;
         }
         const producer = yield transportObject.transport.produce({ kind, rtpParameters, appData, });
-        console.log(`New producer created in room ${roomId}: ${producer.id}, kind: ${kind}`);
         rooms[roomId].peers[socket.id].producers.push(producer);
         producer.on('transportclose', () => {
             producer.close();
@@ -259,14 +258,12 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             roomId,
             kind
         });
-        console.log(`NewProducer event emitted for producer ${producer.id} in room ${roomId}`);
     }));
     socket.on('consume', (_j, callback_5) => __awaiter(void 0, [_j, callback_5], void 0, function* ({ roomId, producerId, rtpCapabilities }, callback) {
         var _k;
         try {
             const router = (_k = rooms[roomId]) === null || _k === void 0 ? void 0 : _k.router;
             const producer = Object.values(rooms[roomId].peers).flatMap((peer) => peer.producers).find((p) => p.id === producerId);
-            console.log(`New consumer created in room ${roomId} for producer ${producerId}`);
             if (!router || !producer) {
                 callback({ error: 'Room or Producer not found' });
                 return;
@@ -285,7 +282,6 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
                 rtpCapabilities,
                 paused: true,
             });
-            console.log(consumer.id, "consume");
             rooms[roomId].peers[socket.id].consumers.push(consumer);
             consumer.on('transportclose', () => {
                 consumer.close();
@@ -309,7 +305,6 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
         var _m;
         try {
             const consumer = (_m = rooms[roomId]) === null || _m === void 0 ? void 0 : _m.peers[socket.id].consumers.find((c) => c.id === consumerId);
-            console.log(consumer === null || consumer === void 0 ? void 0 : consumer.id, "resume");
             if (!consumer) {
                 callback({ params: { error: 'Consumer not found' } });
                 return;

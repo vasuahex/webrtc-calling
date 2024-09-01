@@ -43,7 +43,7 @@ interface Consumer {
 const App: React.FC = () => {
   const [isInRoom, setIsInRoom] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
+  const [socketId, setSocketId] = useState('')
   const [roomId, setRoomId] = useState<string>(''); // room id from socket create room
   const [joinRoomId, setJoinRoomId] = useState<string>(''); // room id from input field
   // const [consumers, setConsumers] = useState<{ [producerId: string]: { combinedStream?: MediaStream } }>({});
@@ -61,7 +61,9 @@ const App: React.FC = () => {
       transports: ['websocket'],
     });
 
-    socketRef.current.on('connection-success', () => {
+    socketRef.current.on('connection-success', ({ socketId }) => {
+      // toast.success(socketId, { position: "top-left" })
+      setSocketId(socketId)
       setIsConnected(true);
     });
     socketRef.current.on("disconnect", () => {
@@ -377,20 +379,21 @@ const App: React.FC = () => {
                       height="100%"
                     />
                   )}
+                  <p className='px-3 py-2 bg-white'>{socketId}</p>
                 </div>
               </div>
-              <div>
-                <h3 className="text-lg font-semibold">Remote Videos</h3>
+              <div className=' space-y-2'>
+                <h3 className="text-lg gap-5 font-semibold">Remote Videos</h3>
                 {Object.entries(consumers).map(([consumerId, { combinedStream, peerId }]) => (
-                  <div key={consumerId} className='w-80 h-60 space-y-2 bg-black'>
+                  <div key={consumerId} className='w-80 h-60  bg-black'>
                     <ReactPlayer
                       style={{ transform: "scaleX(-1)" }}
                       url={combinedStream}
                       playing
                       width="100%"
-                      height="100%" 
+                      height="80%"
                     />
-                    <p>Peer ID: {peerId}</p>
+                    <p className='bg-white p-2'>Peer ID: {peerId}</p>
                   </div>
                 ))}
               </div>

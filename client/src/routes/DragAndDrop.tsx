@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import List from '../reuse/List';
+import { Link } from 'react-router-dom';
 
 const DragAndDrop = () => {
     const [items, setItems] = useState<any>([]);
@@ -15,8 +16,10 @@ const DragAndDrop = () => {
     return (
         <div className="container mx-auto">
             <div>
+
                 <h1 className="text-3xl font-bold text-center mt-8 mb-4">Drag & Drop in React</h1>
-                <div className="flex justify-center mb-4">
+                <div className="flex gap-3 justify-center mb-4">
+                    <Link className='px-3 py-2 bg-blue-200 rounded-md shadow-lg' to="/">back</Link>
                     <input
                         type="text"
                         value={inputValue}

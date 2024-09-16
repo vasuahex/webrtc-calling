@@ -1,64 +1,149 @@
-
-
-import { useState } from 'react';
-import Draggable from 'react-draggable';
+import React, { useState } from 'react';
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import ReactDraggable from 'react-draggable';
 import { Link } from 'react-router-dom';
+import { MdOutlineDragIndicator } from "react-icons/md";
 
-const DraggableItem = ({ id, content }: any) => {
+const DraggableItem = ({ id, content, position, zIndex }: any) => {
     return (
-        <Draggable bounds="parent">
-            <div id={id} className="absolute cursor-move bg-white border-2 hover:scale-105 hover:border-blue-500 rounded-lg shadow-lg p-4 w-32 h-32 flex items-center justify-center text-center">
+        <ReactDraggable
+            bounds="parent"
+            defaultPosition={position}
+            onStop={(e, data) => console.log('Stopped', { id, x: data.x, y: data.y })}
+        >
+            <div
+                id={id}
+                style={{ zIndex }} // Apply dynamic z-index here
+                className="absolute cursor-move bg-white border-2 hover:scale-105 hover:border-blue-500 rounded-lg shadow-lg p-4 w-32 h-32 flex items-center justify-center text-center"
+            >
                 {content}
             </div>
-        </Draggable>
+        </ReactDraggable>
     );
 };
 
-const SimpleDragDropComponent = () => {
-    const [items, setItems] = useState([
-        { id: 'item1', content: 'Item 1' },
-        { id: 'item2', content: 'Item 2' },
-        { id: 'item3', content: 'Item 3' },
+const DesignEditor = () => {
+    const [layers, setLayers] = useState([
+        { id: 'layer1', content: 'Layer 1', position: { x: 0, y: 0 }, zIndex: 1 },
+        { id: 'layer2', content: 'Layer 2', position: { x: 150, y: 50 }, zIndex: 2 },
+        { id: 'layer3', content: 'Layer 3', position: { x: 300, y: 100 }, zIndex: 3 },
     ]);
+    const [selectedLayer, setSelectedLayer] = useState(null);
     const [newItemContent, setNewItemContent] = useState('');
 
     const addNewItem = () => {
         if (newItemContent.trim() !== '') {
             const newItem = {
-                id: `item${items.length + 1}`,
+                id: `layer${layers.length + 1}`,
                 content: newItemContent,
+                position: { x: 50, y: 50 },
+                zIndex: layers.length + 1, // Give new layer the highest z-index
             };
-            setItems([...items, newItem]);
+            setLayers([newItem, ...layers]);
             setNewItemContent('');
         }
     };
 
-    return (
-        <div className="relative w-full h-screen bg-gray-100 p-4">
+    const onDragEnd = (result: any) => {
+        if (!result.destination) return;
 
-            <div className="mb-4 gap-3 flex">
-                <Link className='px-3 py-2 bg-blue-200 rounded-md shadow-lg' to="/">back</Link>
-                <input
-                    type="text"
-                    value={newItemContent}
-                    onChange={(e) => setNewItemContent(e.target.value)}
-                    placeholder="Enter new item content"
-                    className="mr-2 p-2 border border-gray-300 rounded-md"
-                />
-                <button
-                    onClick={addNewItem}
-                    className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors"
-                >
-                    Add Item
-                </button>
-            </div>
-            <div className="relative w-full h-[calc(100vh-100px)] border-2 border-dashed border-gray-300">
-                {items.map((item) => (
-                    <DraggableItem key={item.id} id={item.id} content={item.content} />
-                ))}
+        const items = Array.from(layers);
+        const [reorderedItem] = items.splice(result.source.index, 1);
+        items.splice(result.destination.index, 0, reorderedItem);
+
+        // Update z-index of layers based on their new order
+        const updatedLayers = items.map((layer, index) => ({
+            ...layer,
+            zIndex: layers.length - index, // Highest index gets the highest z-index
+        }));
+
+        setLayers(updatedLayers);
+    };
+
+    const handleLayerClick = (id: any) => {
+        const maxZIndex = Math.max(...layers.map((layer) => layer.zIndex));
+        const updatedLayers = layers.map((layer) =>
+            layer.id === id ? { ...layer, zIndex: maxZIndex + 1 } : layer
+        );
+        setLayers(updatedLayers);
+        setSelectedLayer(id);
+    };
+
+    return (
+        <div className="flex flex-col h-screen bg-gray-100">
+            <nav className="bg-slate-100 shadow-md p-4">
+                <div className="container mx-auto flex items-center justify-between">
+                    <h1 className="text-2xl font-bold text-gray-800">Design Editor</h1>
+                    <Link
+                        className="px-4 py-2 bg-blue-500 text-white rounded-md shadow-lg hover:bg-blue-600 transition-colors"
+                        to="/"
+                    >
+                        Back
+                    </Link>
+                </div>
+            </nav>
+
+            <div className="flex flex-1 overflow-hidden">
+                <div className="w-1/4 bg-gray-300 shadow-lg p-4 overflow-y-auto">
+                    <h2 className="text-xl font-bold mb-4 text-gray-700">Layers</h2>
+                    <div className="mb-4">
+                        <input
+                            type="text"
+                            value={newItemContent}
+                            onChange={(e) => setNewItemContent(e.target.value)}
+                            placeholder="New layer content"
+                            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                            onClick={addNewItem}
+                            className="mt-2 w-full bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors"
+                        >
+                            Add Layer
+                        </button>
+                    </div>
+                    <DragDropContext onDragEnd={onDragEnd}>
+                        <Droppable droppableId="layers">
+                            {(provided) => (
+                                <ul {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                                    {layers.map((layer, index) => (
+                                        <Draggable key={layer.id} draggableId={layer.id} index={index}>
+                                            {(provided) => (
+                                                <div
+                                                    ref={provided.innerRef}
+                                                    {...provided.draggableProps}
+                                                    {...provided.dragHandleProps}
+                                                    className={`p-2 flex gap-5 bg-gray-100 rounded cursor-move ${selectedLayer === layer.id ? 'border-2 border-blue-500' : ''
+                                                        } hover:bg-gray-200 transition-colors`}
+                                                    onClick={() => handleLayerClick(layer.id)} // Handle click to bring to top
+                                                >
+                                                    <MdOutlineDragIndicator size={25} />
+                                                    {layer.content}
+                                                </div>
+                                            )}
+                                        </Draggable>
+                                    ))}
+                                    {provided.placeholder}
+                                </ul>
+                            )}
+                        </Droppable>
+                    </DragDropContext>
+                </div>
+                <div className="flex-1 p-4">
+                    <div className="relative w-full h-full border-2 border-dashed border-gray-300 rounded-lg bg-gray-100 overflow-hidden">
+                        {layers.map((layer) => (
+                            <DraggableItem
+                                key={layer.id}
+                                id={layer.id}
+                                content={layer.content}
+                                position={layer.position}
+                                zIndex={layer.zIndex} // Pass zIndex to DraggableItem
+                            />
+                        ))}
+                    </div>
+                </div>
             </div>
         </div>
     );
 };
 
-export default SimpleDragDropComponent;
+export default DesignEditor;

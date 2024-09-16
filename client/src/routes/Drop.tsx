@@ -10,7 +10,7 @@ const DraggableItem = ({ id, content, position, zIndex }: any) => {
         <ReactDraggable
             bounds="parent"
             defaultPosition={position}
-            onStop={(e, data) => console.log('Stopped', { id, x: data.x, y: data.y })}
+            // onStop={(e, data) => console.log('Stopped', { id, x: data.x, y: data.y })}
         >
             <div
                 id={id}

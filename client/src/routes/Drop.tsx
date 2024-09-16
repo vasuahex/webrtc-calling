@@ -5,17 +5,17 @@ import { Link } from 'react-router-dom';
 import { MdOutlineDragIndicator, MdSave } from "react-icons/md"; // Import save icon
 import html2canvas from 'html2canvas';
 
-const DraggableItem = ({ id, content, position, zIndex }: any) => {
+const DraggableItem = ({ id, content, position, zIndex, onDragStop }: any) => {
     return (
         <ReactDraggable
             bounds="parent"
             defaultPosition={position}
-            // onStop={(e, data) => console.log('Stopped', { id, x: data.x, y: data.y })}
+            onStop={(e, data) => onDragStop(id, { x: data.x, y: data.y })} // Capture position on drag stop
         >
             <div
                 id={id}
                 style={{ zIndex }} // Apply dynamic z-index here
-                className="absolute cursor-move bg-white border-2 hover:scale-105 hover:border-blue-500 rounded-lg shadow-lg p-4 w-32 h-32 flex items-center justify-center text-center"
+                className="boxitem"
             >
                 {content}
             </div>
@@ -47,7 +47,12 @@ const DesignEditor = () => {
     useEffect(() => {
         localStorage.setItem('layers', JSON.stringify(layers))
     }, [layers])
-
+    const onDragStop = (id: any, newPosition: any) => {
+        const updatedLayers = layers.map((layer: any) =>
+            layer.id === id ? { ...layer, position: newPosition } : layer
+        );
+        setLayers(updatedLayers);
+    };
     const onDragEnd = (result: any) => {
         if (!result.destination) return;
 
@@ -153,14 +158,15 @@ const DesignEditor = () => {
                     </DragDropContext>
                 </div>
                 <div className="flex-1 p-4">
-                    <div ref={designRef} className="relative w-full h-full border-2 border-dashed border-gray-300 rounded-lg bg-gray-100 overflow-hidden">
+                    <div ref={designRef} className="parentbox">
                         {layers.map((layer: any) => (
                             <DraggableItem
                                 key={layer.id}
                                 id={layer.id}
                                 content={layer.content}
                                 position={layer.position}
-                                zIndex={layer.zIndex} // Pass zIndex to DraggableItem
+                                zIndex={layer.zIndex}
+                                onDragStop={onDragStop}
                             />
                         ))}
                     </div>

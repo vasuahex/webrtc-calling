@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import ReactDraggable from 'react-draggable';
 import { Link } from 'react-router-dom';
-import { MdOutlineDragIndicator } from "react-icons/md";
+import { MdOutlineDragIndicator, MdSave } from "react-icons/md"; // Import save icon
+import html2canvas from 'html2canvas';
 
 const DraggableItem = ({ id, content, position, zIndex }: any) => {
     return (
@@ -23,13 +24,12 @@ const DraggableItem = ({ id, content, position, zIndex }: any) => {
 };
 
 const DesignEditor = () => {
-    const [layers, setLayers] = useState([
-        { id: 'layer1', content: 'Layer 1', position: { x: 0, y: 0 }, zIndex: 1 },
-        { id: 'layer2', content: 'Layer 2', position: { x: 150, y: 50 }, zIndex: 2 },
-        { id: 'layer3', content: 'Layer 3', position: { x: 300, y: 100 }, zIndex: 3 },
-    ]);
+    const localLayers = localStorage.getItem('layers')
+    const intialValue = localLayers !== null ? JSON.parse(localLayers as string) : []
+    const [layers, setLayers] = useState(intialValue);
     const [selectedLayer, setSelectedLayer] = useState(null);
     const [newItemContent, setNewItemContent] = useState('');
+    const designRef = useRef<HTMLDivElement>(null); // Ref for design area
 
     const addNewItem = () => {
         if (newItemContent.trim() !== '') {
@@ -44,6 +44,10 @@ const DesignEditor = () => {
         }
     };
 
+    useEffect(() => {
+        localStorage.setItem('layers', JSON.stringify(layers))
+    }, [layers])
+
     const onDragEnd = (result: any) => {
         if (!result.destination) return;
 
@@ -52,7 +56,7 @@ const DesignEditor = () => {
         items.splice(result.destination.index, 0, reorderedItem);
 
         // Update z-index of layers based on their new order
-        const updatedLayers = items.map((layer, index) => ({
+        const updatedLayers = items.map((layer: any, index) => ({
             ...layer,
             zIndex: layers.length - index, // Highest index gets the highest z-index
         }));
@@ -61,12 +65,23 @@ const DesignEditor = () => {
     };
 
     const handleLayerClick = (id: any) => {
-        const maxZIndex = Math.max(...layers.map((layer) => layer.zIndex));
-        const updatedLayers = layers.map((layer) =>
+        const maxZIndex = Math.max(...layers.map((layer: any) => layer.zIndex));
+        const updatedLayers = layers.map((layer: any) =>
             layer.id === id ? { ...layer, zIndex: maxZIndex + 1 } : layer
         );
         setLayers(updatedLayers);
         setSelectedLayer(id);
+    };
+
+    const saveAsImage = () => {
+        if (designRef.current) {
+            html2canvas(designRef.current).then((canvas: any) => {
+                const link = document.createElement('a');
+                link.download = 'design.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
     };
 
     return (
@@ -74,12 +89,21 @@ const DesignEditor = () => {
             <nav className="bg-slate-100 shadow-md p-4">
                 <div className="container mx-auto flex items-center justify-between">
                     <h1 className="text-2xl font-bold text-gray-800">Design Editor</h1>
-                    <Link
-                        className="px-4 py-2 bg-blue-500 text-white rounded-md shadow-lg hover:bg-blue-600 transition-colors"
-                        to="/"
-                    >
-                        Back
-                    </Link>
+                    <div className="flex gap-4">
+                        <button
+                            className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-md shadow-lg hover:bg-blue-600 transition-colors"
+                            onClick={saveAsImage} // Trigger save function
+                        >
+                            <MdSave size={20} className="mr-2" />
+                            Save as Image
+                        </button>
+                        <Link
+                            className="px-4 py-2 bg-blue-500 text-white rounded-md shadow-lg hover:bg-blue-600 transition-colors"
+                            to="/"
+                        >
+                            Back
+                        </Link>
+                    </div>
                 </div>
             </nav>
 
@@ -105,7 +129,7 @@ const DesignEditor = () => {
                         <Droppable droppableId="layers">
                             {(provided) => (
                                 <ul {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                                    {layers.map((layer, index) => (
+                                    {layers.map((layer: any, index: number) => (
                                         <Draggable key={layer.id} draggableId={layer.id} index={index}>
                                             {(provided) => (
                                                 <div
@@ -129,8 +153,8 @@ const DesignEditor = () => {
                     </DragDropContext>
                 </div>
                 <div className="flex-1 p-4">
-                    <div className="relative w-full h-full border-2 border-dashed border-gray-300 rounded-lg bg-gray-100 overflow-hidden">
-                        {layers.map((layer) => (
+                    <div ref={designRef} className="relative w-full h-full border-2 border-dashed border-gray-300 rounded-lg bg-gray-100 overflow-hidden">
+                        {layers.map((layer: any) => (
                             <DraggableItem
                                 key={layer.id}
                                 id={layer.id}

@@ -11,7 +11,7 @@ const Home = () => {
         <Link to="/pintrest" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-blue-300'>scroll images</Link>
         <Link to="/videocall" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-green-300'>Video Call</Link>
         <Link to="/waveform" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-yellow-100'>waveform</Link>
-        <Link to="/richtext" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-slate-300'>richtext editor</Link>
+        <Link to="/richtexteditor" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-slate-300'>richtext editor</Link>
         <Link to="/fonts" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-purple-300'>fonts</Link>
       </div>
 

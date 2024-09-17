@@ -25,7 +25,7 @@ const App = () => {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/fonts" element={<Fonts />} />
-        <Route path="/richtext" element={<RichTextEditor />} />
+        <Route path="/richtexteditor" element={<RichTextEditor />} />
         <Route path="/videocall" element={<VideoCall />} />
         <Route path="/adwancedraganddrop" element={< AdvanceDragADrop />} />
         <Route path="/drag" element={<Drop />} />

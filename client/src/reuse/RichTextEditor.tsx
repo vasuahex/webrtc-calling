@@ -1,14 +1,12 @@
 import { useRef, useState } from 'react'
-import { FaPlus } from 'react-icons/fa'
 import { DesignElement } from '../interfaces/globalInterface';
 import EditorBoard from '../routes/Editor';
+import Toolbar from '../components/other components/AllOptions';
 
 const RichTextEditor = () => {
     const [elements, setElements] = useState<DesignElement[]>([]);
     const [selectedElement, setSelectedElement] = useState<DesignElement | null>(null);
     const editorRef = useRef<HTMLDivElement>(null);
-    // const [availableFonts, setAvailableFonts] = useState<string[]>(['Arial', 'Verdana', 'Times New Roman']);
-    // const [selectedFont, setSelectedFont] = useState<string>('Arial');
 
     const addElement = (type: 'text') => {
         const randomNumber = Math.floor(Math.random() * (400 - 50 + 1)) + 50;
@@ -36,15 +34,51 @@ const RichTextEditor = () => {
         setSelectedElement(newElement);
     };
 
+    const updateElement = (id: string, updates: Partial<DesignElement>) => {
+        setElements((prevElements) =>
+            prevElements.map((el) => (el.id === id ? { ...el, ...updates } : el))
+        );
+        if (selectedElement && selectedElement.id === id) {
+            setSelectedElement({ ...selectedElement, ...updates });
+        }
+    };
 
+
+    // Handle style changes (bold, italic, underline, text alignment)
+    const handleStyleChange = (style: string, fontFamily?: any) => {
+        if (!selectedElement) return;
+        const updatedStyle = { ...selectedElement.style };
+
+        switch (style) {
+            case 'bold':
+                updatedStyle.fontWeight = updatedStyle.fontWeight === 'bold' ? 'normal' : 'bold';
+                break;
+            case 'italic':
+                updatedStyle.fontStyle = updatedStyle.fontStyle === 'italic' ? 'normal' : 'italic';
+                break;
+            case 'underline':
+                updatedStyle.textDecoration = updatedStyle.textDecoration === 'underline' ? 'none' : 'underline';
+                break;
+            case 'alignLeft':
+            case 'alignCenter':
+            case 'alignRight':
+            case 'justify':
+                updatedStyle.textAlign = style.replace('align', '').toLowerCase() as 'left' | 'center' | 'right' | 'justify';
+                break;
+            case 'fontFamily':
+                if (fontFamily) {
+                    updatedStyle.fontFamily = fontFamily;
+                }
+                break;
+            default:
+                break;
+        }
+        updateElement(selectedElement.id, { style: updatedStyle });
+    };
     return (
         <>
-            <div className="flex space-x-2 bg-white p-2 rounded shadow w-fit">
-                <button onClick={() => addElement('text')} className="p-2 hover:bg-gray-100 rounded">
-                    <FaPlus />
-                </button>
-            </div>
-            <EditorBoard editorRef={editorRef} selectedElement={selectedElement} setSelectedElement={setSelectedElement} elements={elements} setElements={setElements} />
+            <Toolbar addElement={addElement} handleStyleChange={handleStyleChange} />
+            <EditorBoard editorRef={editorRef} updateElement={updateElement} handleStyleChange={handleStyleChange} selectedElement={selectedElement} setSelectedElement={setSelectedElement} elements={elements} setElements={setElements} />
         </>
     )
 }

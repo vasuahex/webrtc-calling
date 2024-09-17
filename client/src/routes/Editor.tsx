@@ -1,4 +1,4 @@
-import React, { MouseEvent, useEffect } from 'react';
+import React, { MouseEvent } from 'react';
 import { DesignElement } from '../interfaces/globalInterface';
 import { ElementControls, ResizeContent } from '../reuse/ImediateShortCuts';
 
@@ -9,52 +9,12 @@ interface EditorBoardProps {
     setSelectedElement: React.Dispatch<React.SetStateAction<DesignElement | null>>;
     editorRef: React.RefObject<HTMLDivElement>;
     setElements: React.Dispatch<React.SetStateAction<DesignElement[]>>;
+    handleStyleChange: any;
+    updateElement: any
 }
 
-const EditorBoard: React.FC<EditorBoardProps> = ({ elements, selectedElement, setSelectedElement, editorRef, setElements }) => {
-    // Update element with new style properties
-    const updateElement = (id: string, updates: Partial<DesignElement>) => {
-        setElements((prevElements) =>
-            prevElements.map((el) => (el.id === id ? { ...el, ...updates } : el))
-        );
-        if (selectedElement && selectedElement.id === id) {
-            setSelectedElement({ ...selectedElement, ...updates });
-        }
-    };
+const EditorBoard: React.FC<EditorBoardProps> = ({ elements, selectedElement, updateElement, handleStyleChange, setSelectedElement, editorRef, setElements }) => {
 
-    // Handle style changes (bold, italic, underline, text alignment)
-    const handleStyleChange = (style: string, fontFamily?: any) => {
-        if (!selectedElement) return;
-        const updatedStyle = { ...selectedElement.style };
-
-        switch (style) {
-            case 'bold':
-                updatedStyle.fontWeight = updatedStyle.fontWeight === 'bold' ? 'normal' : 'bold';
-                break;
-            case 'italic':
-                updatedStyle.fontStyle = updatedStyle.fontStyle === 'italic' ? 'normal' : 'italic';
-                break;
-            case 'underline':
-                updatedStyle.textDecoration = updatedStyle.textDecoration === 'underline' ? 'none' : 'underline';
-                break;
-            case 'alignLeft':
-            case 'alignCenter':
-            case 'alignRight':
-            case 'justify':
-                updatedStyle.textAlign = style.replace('align', '').toLowerCase() as 'left' | 'center' | 'right' | 'justify';
-                break;
-            case 'fontFamily':
-                if (fontFamily) {
-                    updatedStyle.fontFamily = fontFamily;
-                }
-                break;
-            default:
-                break;
-        }
-        updateElement(selectedElement.id, { style: updatedStyle });
-    };
-
-    // Handle mouse events for moving and resizing elements
     const handleMouseDown = (e: MouseEvent<HTMLDivElement>, element: DesignElement, action: string) => {
         e.stopPropagation();
         setSelectedElement(element);
@@ -133,21 +93,6 @@ const EditorBoard: React.FC<EditorBoardProps> = ({ elements, selectedElement, se
             setSelectedElement(newElement);
         }
     };
-
-    // Handle click outside to deselect elements
-    const handleClickOutside = (event: Event) => {
-        const mouseEvent = event;
-        if (editorRef.current && !editorRef.current.contains(mouseEvent.target as Node)) {
-            setSelectedElement(null);
-        }
-    };
-
-    useEffect(() => {
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [editorRef, setSelectedElement]);
 
     // Handle deletion of selected element
     const handleDelete = (element: DesignElement) => {

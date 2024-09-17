@@ -8,11 +8,15 @@ import DragAndDrop from './routes/DragAndDrop'
 import PeerTest from './PeerTest'
 import { ToastContainer } from "react-toastify"
 import WaveForm from './routes/WaveForm'
-import "./css/App.css"
-import 'react-toastify/dist/ReactToastify.css';
 import Themes from './routes/Themes'
 import Pintrest from './routes/Pintrest'
 import VideoCall from './routes/VideoCall'
+import Editor from './routes/Editor'
+import RichText from './routes/RichText'
+
+import "./css/App.css"
+import 'react-toastify/dist/ReactToastify.css';
+
 const App = () => {
   return (
     <div className=''>
@@ -20,6 +24,8 @@ const App = () => {
         pauseOnFocusLoss draggable pauseOnHover theme="light" />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/editor" element={<Editor />} />
+        <Route path="/richtext" element={<RichText />} />
         <Route path="/videocall" element={<VideoCall />} />
         <Route path="/adwancedraganddrop" element={< AdvanceDragADrop />} />
         <Route path="/drag" element={<Drop />} />

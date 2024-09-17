@@ -10,7 +10,7 @@ const DraggableItem = ({ id, content, position, zIndex, onDragStop }: any) => {
         <ReactDraggable
             bounds="parent"
             defaultPosition={position}
-            onStop={(e, data) => onDragStop(id, { x: data.x, y: data.y })} // Capture position on drag stop
+            onStop={(_, data) => onDragStop(id, { x: data.x, y: data.y })} // Capture position on drag stop
         >
             <div
                 id={id}

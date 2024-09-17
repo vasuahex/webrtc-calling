@@ -1,4 +1,4 @@
-import React, { MouseEvent, useState } from 'react';
+import React, { MouseEvent } from 'react';
 import { DesignElement } from '../interfaces/globalInterface';
 import { ElementControls, ResizeContent } from '../reuse/ImediateShortCuts';
 

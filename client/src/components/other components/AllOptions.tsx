@@ -7,9 +7,11 @@ import {
 } from 'react-icons/bi';
 import { FaPlus } from 'react-icons/fa';
 
-const Toolbar = ({ addElement, handleStyleChange }: any) => {
+const Toolbar = ({ addElement, handleStyleChange, handleLinkInsert }: any) => {
     const [isSmallScreen, setIsSmallScreen] = useState(false);
     const [showMore, setShowMore] = useState(false);
+    const [linkUrl, setLinkUrl] = useState('');
+    const [showLinkInput, setShowLinkInput] = useState(false);
 
     useEffect(() => {
         const handleResize = () => {
@@ -21,6 +23,17 @@ const Toolbar = ({ addElement, handleStyleChange }: any) => {
 
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    const handleLinkButtonClick = () => {
+        setShowLinkInput(!showLinkInput);
+    };
+
+    const handleLinkSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        handleLinkInsert(linkUrl);
+        setLinkUrl('');
+        setShowLinkInput(false);
+    };
 
     const ToolbarButton = ({ icon: Icon, label, onClick }: any) => (
         <button onClick={onClick} className="p-1.5 hover:bg-gray-100 rounded" title={label}>
@@ -37,8 +50,7 @@ const Toolbar = ({ addElement, handleStyleChange }: any) => {
         { icon: BiBold, label: 'Bold', onClick: () => handleStyleChange('bold') },
         { icon: BiItalic, label: 'Italic', onClick: () => handleStyleChange('italic') },
         { icon: BiUnderline, label: 'Underline', onClick: () => handleStyleChange('underline') },
-        { icon: BiStrikethrough, label: 'Strikethrough', onClick: () => handleStyleChange('bold') },
-        { icon: BiLink, label: 'Insert link' },
+        { icon: BiStrikethrough, label: 'Strikethrough', onClick: () => handleStyleChange('strikeThrough') },        { icon: BiLink, label: 'Insert link', onClick: handleLinkButtonClick },
         { icon: BiImage, label: 'Insert image' },
         { icon: BiAlignLeft, label: 'Align left', onClick: () => handleStyleChange('alignLeft') },
         { icon: BiAlignMiddle, label: 'Align center', onClick: () => handleStyleChange('alignCenter') },
@@ -94,6 +106,20 @@ const Toolbar = ({ addElement, handleStyleChange }: any) => {
                     <option>100%</option>
                 </select>
             </div>
+            {showLinkInput && !isSmallScreen && (
+                <form onSubmit={handleLinkSubmit} className="absolute top-14 right-1/3 flex items-center">
+                    <input
+                        type="url"
+                        value={linkUrl}
+                        onChange={(e) => setLinkUrl(e.target.value)}
+                        placeholder="Enter URL"
+                        className="border rounded px-2 py-1 text-sm mr-2"
+                    />
+                    <button type="submit" className="bg-blue-500 text-white px-2 py-1 rounded text-sm">
+                        Insert
+                    </button>
+                </form>
+            )}
         </div>
     );
 };

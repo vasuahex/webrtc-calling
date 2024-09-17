@@ -1,4 +1,4 @@
-import React, { MouseEvent } from 'react';
+import React, { MouseEvent, useState } from 'react';
 import { DesignElement } from '../interfaces/globalInterface';
 import { ElementControls, ResizeContent } from '../reuse/ImediateShortCuts';
 
@@ -125,13 +125,13 @@ const EditorBoard: React.FC<EditorBoardProps> = ({ elements, selectedElement, up
                                 }}
                             >
                                 {element.content}
+                                {selectedElement?.id === element.id && (
+                                    <>
+                                        <ElementControls handleDuplicate={handleDuplicate} handleStyleChange={handleStyleChange} onDelete={handleDelete} selectedElement={selectedElement} />
+                                        <ResizeContent onMouseDown={handleMouseDown} element={element} />
+                                    </>
+                                )}
                             </div>
-                        )}
-                        {selectedElement?.id === element.id && (
-                            <>
-                                <ElementControls handleDuplicate={handleDuplicate} handleStyleChange={handleStyleChange} onDelete={handleDelete} selectedElement={selectedElement} />
-                                <ResizeContent onMouseDown={handleMouseDown} element={element} />
-                            </>
                         )}
                     </div>
                 ))}

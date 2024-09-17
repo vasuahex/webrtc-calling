@@ -8,7 +8,7 @@ export interface ElementStyle {
     fontSize: string;
     fontWeight: 'normal' | 'bold';
     fontStyle: 'normal' | 'italic';
-    textDecoration: 'none' | 'underline';
+    textDecoration: 'none' | 'underline' | 'line-through';
     textAlign: 'left' | 'center' | 'right' | 'justify';
     transform: string;
     fontFamily?: string

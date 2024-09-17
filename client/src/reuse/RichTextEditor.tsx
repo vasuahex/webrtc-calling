@@ -59,6 +59,9 @@ const RichTextEditor = () => {
             case 'underline':
                 updatedStyle.textDecoration = updatedStyle.textDecoration === 'underline' ? 'none' : 'underline';
                 break;
+            case 'strikeThrough':
+                updatedStyle.textDecoration = updatedStyle.textDecoration === "line-through" ? 'none' : 'line-through';
+                break;
             case 'alignLeft':
             case 'alignCenter':
             case 'alignRight':
@@ -75,10 +78,20 @@ const RichTextEditor = () => {
         }
         updateElement(selectedElement.id, { style: updatedStyle });
     };
+
+    const handleLinkInsert = (url: string) => {
+        if (!selectedElement) return;
+        const updatedContent = `<a href="${url}">${selectedElement.content}</a>`;
+        updateElement(selectedElement.id, { content: updatedContent });
+    };
+
     return (
         <>
-            <Toolbar addElement={addElement} handleStyleChange={handleStyleChange} />
-            <EditorBoard editorRef={editorRef} updateElement={updateElement} handleStyleChange={handleStyleChange} selectedElement={selectedElement} setSelectedElement={setSelectedElement} elements={elements} setElements={setElements} />
+            <Toolbar addElement={addElement} handleStyleChange={handleStyleChange}
+                handleLinkInsert={handleLinkInsert} />
+            <EditorBoard editorRef={editorRef} updateElement={updateElement}
+                handleStyleChange={handleStyleChange} selectedElement={selectedElement}
+                setSelectedElement={setSelectedElement} elements={elements} setElements={setElements} />
         </>
     )
 }

@@ -221,34 +221,34 @@ const DesignEditor: React.FC = () => {
                             {selectedElement && (
                                 <div className='absolute -top-14 flex space-x-2 bg-white p-2 rounded shadow'>
                                     <button onClick={() => handleStyleChange('bold')} className="p-2 hover:bg-gray-100 rounded">
-                                        <FaBold />
+                                        <FaBold title='bold' />
                                     </button>
                                     <button onClick={() => handleStyleChange('italic')} className="p-2 hover:bg-gray-100 rounded">
-                                        <FaItalic />
+                                        <FaItalic title='italic' />
                                     </button>
                                     <button onClick={() => handleStyleChange('underline')} className="p-2 hover:bg-gray-100 rounded">
-                                        <FaUnderline />
+                                        <FaUnderline title='underline' />
                                     </button>
                                     <button onClick={() => handleStyleChange('alignLeft')} className="p-2 hover:bg-gray-100 rounded">
-                                        <FaAlignLeft />
+                                        <FaAlignLeft title='align left' />
                                     </button>
                                     <button onClick={() => handleStyleChange('alignCenter')} className="p-2 hover:bg-gray-100 rounded">
-                                        <FaAlignCenter />
+                                        <FaAlignCenter title='align center' />
                                     </button>
                                     <button onClick={() => handleStyleChange('alignRight')} className="p-2 hover:bg-gray-100 rounded">
-                                        <FaAlignRight />
+                                        <FaAlignRight title='align right' />
                                     </button>
                                     <button onClick={() => handleStyleChange('justify')} className="p-2 hover:bg-gray-100 rounded">
-                                        <FaAlignJustify />
+                                        <FaAlignJustify title='justify' />
                                     </button>
                                     <button onClick={handleDuplicate} className="p-2 hover:bg-gray-100 rounded">
-                                        <FaCopy />
+                                        <FaCopy title='copy' />
                                     </button>
                                     <button
                                         onClick={() => setElements(elements.filter((el) => el.id !== selectedElement.id))}
                                         className="p-2 hover:bg-gray-100 rounded"
                                     >
-                                        <FaTrash />
+                                        <FaTrash title='trash' />
                                     </button>
                                 </div>
                             )}

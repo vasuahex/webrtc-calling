@@ -11,11 +11,11 @@ import WaveForm from './routes/WaveForm'
 import Themes from './routes/Themes'
 import Pintrest from './routes/Pintrest'
 import VideoCall from './routes/VideoCall'
-import Editor from './routes/Editor'
-import RichText from './routes/RichText'
+import RichTextEditor from './reuse/RichTextEditor'
 
 import "./css/App.css"
 import 'react-toastify/dist/ReactToastify.css';
+import Fonts from './routes/Fonts'
 
 const App = () => {
   return (
@@ -24,8 +24,8 @@ const App = () => {
         pauseOnFocusLoss draggable pauseOnHover theme="light" />
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/editor" element={<Editor />} />
-        <Route path="/richtext" element={<RichText />} />
+        <Route path="/fonts" element={<Fonts />} />
+        <Route path="/richtext" element={<RichTextEditor />} />
         <Route path="/videocall" element={<VideoCall />} />
         <Route path="/adwancedraganddrop" element={< AdvanceDragADrop />} />
         <Route path="/drag" element={<Drop />} />

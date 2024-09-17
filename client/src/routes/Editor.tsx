@@ -1,377 +1,198 @@
-// import React from 'react';
+import React, { MouseEvent, useEffect } from 'react';
+import { DesignElement } from '../interfaces/globalInterface';
+import { ElementControls, ResizeContent } from '../reuse/ImediateShortCuts';
 
-// const App = () => {
-//   return (
-//     <div className="flex h-screen">
-//       {/* Sidebar */}
-//       <Sidebar />
-
-//       {/* Main Board */}
-//       <div className="flex-grow bg-gray-100">
-//         <EditorBoard />
-//       </div>
-//     </div>
-//   );
-// };
-
-// const Sidebar = () => {
-//   const menuItems = [
-//     { name: 'Template', icon: '📄' },
-//     { name: 'Text', icon: '📝' },
-//     { name: 'Shape', icon: '🔶' },
-//     { name: 'Frame', icon: '🖼️' },
-//     { name: 'Image', icon: '🖼️' },
-//     { name: 'Graphic', icon: '🎨' },
-//     { name: 'QR Code', icon: '🔳' },
-//     { name: 'Video', icon: '🎥' },
-//   ];
-
-//   return (
-//     <div className="w-1/5 bg-gray-900 text-white p-4 space-y-6">
-//       <h1 className="text-2xl font-bold mb-6">LidoJS</h1>
-//       <ul className="space-y-4">
-//         {menuItems.map((item) => (
-//           <li
-//             key={item.name}
-//             className="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded"
-//           >
-//             <span>{item.icon}</span>
-//             <span>{item.name}</span>
-//           </li>
-//         ))}
-//       </ul>
-//     </div>
-//   );
-// };
-
-// const EditorBoard = () => {
-//   return (
-//     <div className="flex justify-center items-center h-full bg-gray-300">
-//       <div className="w-3/4 h-3/4 bg-white shadow-md flex justify-center items-center">
-//         <p className="text-5xl font-bold text-gray-600">SALE</p>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default App;
-
-// import React, { useState } from 'react';
-// import { FaUndo, FaRedo } from 'react-icons/fa';
-// import { AiOutlineMenu, AiOutlineClose } from 'react-icons/ai';
-
-// const App = () => {
-//     const [isMenuOpen, setIsMenuOpen] = useState(true);
-//     const [texts, setTexts] = useState<string[]>([]);
-
-//     const toggleMenu = () => {
-//         setIsMenuOpen(!isMenuOpen);
-//     };
-
-//     const addTextField = () => {
-//         setTexts([...texts, "New Text"]);
-//     };
-
-//     return (
-//         <div className="flex h-screen">
-//             {/* Sidebar */}
-//             {isMenuOpen && <Sidebar addTextField={addTextField} />}
-
-//             {/* Main Board */}
-//             <div className="flex-grow flex flex-col">
-//                 {/* Navbar */}
-//                 <Navbar toggleMenu={toggleMenu} isMenuOpen={isMenuOpen} />
-
-//                 {/* Editor Board */}
-//                 <EditorBoard texts={texts} />
-//             </div>
-//         </div>
-//     );
-// };
-
-// const Sidebar = ({ addTextField }: any) => {
-//     return (
-//         <div className="w-1/5 bg-gray-900 text-white p-4 space-y-6">
-//             <ul className="space-y-4">
-//                 <li
-//                     onClick={addTextField}
-//                     className="cursor-pointer hover:bg-gray-700 p-2 rounded"
-//                 >
-//                     Text
-//                 </li>
-//                 <li className="cursor-pointer hover:bg-gray-700 p-2 rounded">Shape</li>
-//                 <li className="cursor-pointer hover:bg-gray-700 p-2 rounded">Image</li>
-//                 {/* Add more items as needed */}
-//             </ul>
-//         </div>
-//     );
-// };
-
-// const Navbar = ({ toggleMenu, isMenuOpen }: any) => {
-//     return (
-//         <div className="bg-gray-800 text-white flex justify-between items-center p-4">
-//             <div className="flex items-center">
-//                 {/* Logo */}
-//                 <h1 className="text-lg font-bold">Safeer Editors</h1>
-//                 {/* Menu Icon */}
-//                 <button onClick={toggleMenu} className="ml-4">
-//                     {isMenuOpen ? <AiOutlineClose size={24} /> : <AiOutlineMenu size={24} />}
-//                 </button>
-//             </div>
-//             {/* Undo and Redo Icons */}
-//             <div className="space-x-4">
-//                 <FaUndo size={24} className="cursor-pointer hover:text-gray-300" />
-//                 <FaRedo size={24} className="cursor-pointer hover:text-gray-300" />
-//             </div>
-//         </div>
-//     );
-// };
-
-// const EditorBoard = ({ texts }: any) => {
-//     return (
-//         <div className="flex-grow bg-gray-100 p-4">
-//             <div className="w-full h-full bg-white border border-gray-300 shadow-md p-4">
-//                 {texts.map((text, index: number) => (
-//                     <div
-//                         key={index}
-//                         className="border border-blue-400 text-2xl p-2 mb-4 cursor-pointer"
-//                         contentEditable
-//                     >
-//                         {text}
-//                     </div>
-//                 ))}
-//             </div>
-//         </div>
-//     );
-// };
-
-// export default App;
-
-
-// import React, { useRef, useState } from 'react';
-
-// const Editor = () => {
-//     const contentRef = useRef(null);
-//     const imageInputRef = useRef(null);
-//     const [isResizing, setIsResizing] = useState(false);
-//     const [resizingImage, setResizingImage] = useState(null);
-
-//     const handleFormat = (format) => {
-//         if (contentRef.current) {
-//             document.execCommand(format, false, null);
-//         }
-//     };
-
-//     const handleInsertImage = () => {
-//         imageInputRef.current.click();
-//     };
-
-//     const handleImageUpload = (event) => {
-//         const file = event.target.files[0];
-//         if (file) {
-//             const reader = new FileReader();
-//             reader.onload = () => {
-//                 const img = document.createElement('img');
-//                 img.src = reader.result;
-//                 img.addEventListener('mousedown', handleImageMouseDown);
-//                 img.addEventListener('mousemove', handleImageMouseMove);
-//                 img.addEventListener('mouseup', handleImageMouseUp);
-//                 contentRef.current.appendChild(img);
-//             };
-//             reader.readAsDataURL(file);
-//         }
-//     };
-
-//     const handleImageMouseDown = (event) => {
-//         if (event.target.tagName === 'IMG') {
-//             setIsResizing(true);
-//             setResizingImage(event.target);
-//         }
-//     };
-
-//     const handleImageMouseMove = (event) => {
-//         if (isResizing && resizingImage) {
-//             const rect = resizingImage.getBoundingClientRect();
-//             const deltaX = event.clientX - rect.left;
-//             const deltaY = event.clientY - rect.top;
-//             resizingImage.style.width = `${deltaX}px`;
-//             resizingImage.style.height = `${deltaY}px`;
-//         }
-//     };
-
-//     const handleImageMouseUp = () => {
-//         setIsResizing(false);
-//         setResizingImage(null);
-//     };
-
-//     return (
-//         <div className="editor">
-//             <div className="toolbar">
-//                 <button onClick={() => handleFormat('bold')}>Bold</button>
-//                 <button onClick={() => handleFormat('italic')}>Italic</button>
-//                 <button onClick={() => handleFormat('underline')}>Underline</button>
-//                 <button onClick={handleInsertImage}>Insert Image</button>
-//             </div>
-//             <div className="content" ref={contentRef} contentEditable={true}></div>
-//             <input type="file" ref={imageInputRef} onChange={handleImageUpload} hidden />
-//         </div>
-//     );
-// };
-
-// export default Editor;
-
-
-// import React, { useState, useRef } from 'react';
-
-// const App = () => {
-//   return (
-//     <div className="flex h-screen">
-//       <Sidebar />
-//       <div className="flex-grow bg-gray-100">
-//         <EditorBoard />
-//       </div>
-//     </div>
-//   );
-// };
-
-// const Sidebar = () => {
-//   const menuItems = [
-//     { name: 'Template', icon: '📄' },
-//     { name: 'Text', icon: '📝' },
-//     { name: 'Shape', icon: '🔶' },
-//     { name: 'Frame', icon: '🖼️' },
-//     { name: 'Image', icon: '🖼️' },
-//     { name: 'Graphic', icon: '🎨' },
-//     { name: 'QR Code', icon: '🔳' },
-//     { name: 'Video', icon: '🎥' },
-//   ];
-
-//   return (
-//     <div className="w-1/5 bg-gray-900 text-white p-4 space-y-6">
-//       <h1 className="text-2xl font-bold mb-6">LidoJS</h1>
-//       <ul className="space-y-4">
-//         {menuItems.map((item) => (
-//           <li
-//             key={item.name}
-//             className="flex items-center space-x-2 cursor-pointer hover:bg-gray-700 p-2 rounded"
-//           >
-//             <span>{item.icon}</span>
-//             <span>{item.name}</span>
-//           </li>
-//         ))}
-//       </ul>
-//     </div>
-//   );
-// };
-
-// const EditorBoard = () => {
-//   const [images, setImages] = useState([]);
-//   const [selectedImage, setSelectedImage] = useState(null);
-//   const boardRef = useRef(null);
-
-//   const addImage = () => {
-//     const newImage = {
-//       id: Date.now(),
-//       src: '/api/placeholder/200/200',
-//       x: 100,
-//       y: 100,
-//       width: 200,
-//       height: 200,
-//     };
-//     setImages([...images, newImage]);
-//   };
-
-//   const handleImageClick = (image) => {
-//     setSelectedImage(image);
-//   };
-
-//   const handleImageDrag = (e, id) => {
-//     const boardRect = boardRef.current.getBoundingClientRect();
-//     const newX = e.clientX - boardRect.left;
-//     const newY = e.clientY - boardRect.top;
-
-//     setImages(images.map(img => 
-//       img.id === id ? { ...img, x: newX, y: newY } : img
-//     ));
-//   };
-
-//   const handleImageResize = (id, newWidth, newHeight) => {
-//     setImages(images.map(img =>
-//       img.id === id ? { ...img, width: newWidth, height: newHeight } : img
-//     ));
-//   };
-
-//   return (
-//     <div className="relative h-full" ref={boardRef}>
-//       <button 
-//         onClick={addImage}
-//         className="absolute top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded"
-//       >
-//         Add Image
-//       </button>
-//       {images.map((image) => (
-//         <div
-//           key={image.id}
-//           style={{
-//             position: 'absolute',
-//             left: `${image.x}px`,
-//             top: `${image.y}px`,
-//             width: `${image.width}px`,
-//             height: `${image.height}px`,
-//             cursor: 'move',
-//           }}
-//           onClick={() => handleImageClick(image)}
-//           draggable
-//           onDragEnd={(e) => handleImageDrag(e, image.id)}
-//         >
-//           <img 
-//             src={image.src} 
-//             alt="Placeholder" 
-//             className="w-full h-full object-cover"
-//           />
-//           {selectedImage && selectedImage.id === image.id && (
-//             <ImageOptions 
-//               image={image} 
-//               onResize={handleImageResize}
-//             />
-//           )}
-//         </div>
-//       ))}
-//     </div>
-//   );
-// };
-
-// const ImageOptions = ({ image, onResize }) => {
-//   const handleResize = (e) => {
-//     const newWidth = parseInt(e.target.value);
-//     const newHeight = (newWidth / image.width) * image.height;
-//     onResize(image.id, newWidth, newHeight);
-//   };
-
-//   return (
-//     <div className="absolute -top-10 left-0 bg-white p-2 rounded shadow">
-//       <input 
-//         type="range" 
-//         min="50" 
-//         max="500" 
-//         value={image.width} 
-//         onChange={handleResize}
-//       />
-//       <button className="ml-2 bg-red-500 text-white px-2 py-1 rounded">
-//         Delete
-//       </button>
-//     </div>
-//   );
-// };
-
-// export default App;
-
-// import React from 'react'
-
-const Editor = () => {
-  return (
-    <div>Editor</div>
-  )
+// Define the type for the props
+interface EditorBoardProps {
+    elements: DesignElement[];
+    selectedElement: DesignElement | null;
+    setSelectedElement: React.Dispatch<React.SetStateAction<DesignElement | null>>;
+    editorRef: React.RefObject<HTMLDivElement>;
+    setElements: React.Dispatch<React.SetStateAction<DesignElement[]>>;
 }
 
-export default Editor
+const EditorBoard: React.FC<EditorBoardProps> = ({ elements, selectedElement, setSelectedElement, editorRef, setElements }) => {
+    // Update element with new style properties
+    const updateElement = (id: string, updates: Partial<DesignElement>) => {
+        setElements((prevElements) =>
+            prevElements.map((el) => (el.id === id ? { ...el, ...updates } : el))
+        );
+        if (selectedElement && selectedElement.id === id) {
+            setSelectedElement({ ...selectedElement, ...updates });
+        }
+    };
+
+    // Handle style changes (bold, italic, underline, text alignment)
+    const handleStyleChange = (style: string, fontFamily?: any) => {
+        if (!selectedElement) return;
+        const updatedStyle = { ...selectedElement.style };
+
+        switch (style) {
+            case 'bold':
+                updatedStyle.fontWeight = updatedStyle.fontWeight === 'bold' ? 'normal' : 'bold';
+                break;
+            case 'italic':
+                updatedStyle.fontStyle = updatedStyle.fontStyle === 'italic' ? 'normal' : 'italic';
+                break;
+            case 'underline':
+                updatedStyle.textDecoration = updatedStyle.textDecoration === 'underline' ? 'none' : 'underline';
+                break;
+            case 'alignLeft':
+            case 'alignCenter':
+            case 'alignRight':
+            case 'justify':
+                updatedStyle.textAlign = style.replace('align', '').toLowerCase() as 'left' | 'center' | 'right' | 'justify';
+                break;
+            case 'fontFamily':
+                if (fontFamily) {
+                    updatedStyle.fontFamily = fontFamily;
+                }
+                break;
+            default:
+                break;
+        }
+        updateElement(selectedElement.id, { style: updatedStyle });
+    };
+
+    // Handle mouse events for moving and resizing elements
+    const handleMouseDown = (e: MouseEvent<HTMLDivElement>, element: DesignElement, action: string) => {
+        e.stopPropagation();
+        setSelectedElement(element);
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startLeft = parseInt(element.style.left, 10);
+        const startTop = parseInt(element.style.top, 10);
+        const startWidth = parseInt(element.style.width, 10);
+        const startHeight = parseInt(element.style.height, 10);
+        const startRotation = parseInt(element.style.transform.replace('rotate(', '').replace('deg)', ''), 10) || 0;
+
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            const dx = moveEvent.clientX - startX;
+            const dy = moveEvent.clientY - startY;
+            const newStyle = { ...element.style };
+
+            switch (action) {
+                case 'move':
+                    newStyle.left = `${startLeft + dx}px`;
+                    newStyle.top = `${startTop + dy}px`;
+                    break;
+                case 'resize-se':
+                    newStyle.width = `${startWidth + dx}px`;
+                    newStyle.height = `${startHeight + dy}px`;
+                    break;
+                case 'resize-sw':
+                    newStyle.width = `${startWidth - dx}px`;
+                    newStyle.height = `${startHeight + dy}px`;
+                    newStyle.left = `${startLeft + dx}px`;
+                    break;
+                case 'resize-ne':
+                    newStyle.width = `${startWidth + dx}px`;
+                    newStyle.height = `${startHeight - dy}px`;
+                    newStyle.top = `${startTop + dy}px`;
+                    break;
+                case 'resize-nw':
+                    newStyle.width = `${startWidth - dx}px`;
+                    newStyle.height = `${startHeight - dy}px`;
+                    newStyle.left = `${startLeft + dx}px`;
+                    newStyle.top = `${startTop + dy}px`;
+                    break;
+                case 'rotate':
+                    const angle = Math.atan2(moveEvent.clientY - startY, moveEvent.clientX - startX) * (180 / Math.PI);
+                    newStyle.transform = `rotate(${startRotation + angle}deg)`;
+                    break;
+                default:
+                    break;
+            }
+
+            updateElement(element.id, { style: newStyle });
+        };
+
+        const handleMouseUp = () => {
+            document.removeEventListener('mousemove', handleMouseMove as any);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove as any);
+        document.addEventListener('mouseup', handleMouseUp);
+    };
+
+    // Handle duplication of selected element
+    const handleDuplicate = () => {
+        if (selectedElement) {
+            const newElement = {
+                ...selectedElement,
+                id: `element-${Date.now()}`,
+                style: {
+                    ...selectedElement.style,
+                    left: `${parseInt(selectedElement.style.left, 10) + 20}px`,
+                    top: `${parseInt(selectedElement.style.top, 10) + 20}px`,
+                },
+            };
+            setElements((prev) => [...prev, newElement]);
+            setSelectedElement(newElement);
+        }
+    };
+
+    // Handle click outside to deselect elements
+    const handleClickOutside = (event: Event) => {
+        const mouseEvent = event;
+        if (editorRef.current && !editorRef.current.contains(mouseEvent.target as Node)) {
+            setSelectedElement(null);
+        }
+    };
+
+    useEffect(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [editorRef, setSelectedElement]);
+
+    // Handle deletion of selected element
+    const handleDelete = (element: DesignElement) => {
+        setElements(elements.filter((el) => el.id !== element.id));
+    };
+
+    return (
+        <div className="p-4 max-w-4xl mx-auto">
+            <section className="relative border-2 overflow-hidden shadow-md h-screen rounded-md p-1" ref={editorRef}>
+                {elements.map((element) => (
+                    <div
+                        key={element.id}
+                        style={element.style}
+                        className={`absolute ${selectedElement?.id === element.id ? 'ring-2 ring-blue-500' : ''}`}
+                        onMouseDown={(e) => handleMouseDown(e, element, 'move')}
+                    >
+                        {element.type === 'text' && (
+                            <div
+                                contentEditable
+                                suppressContentEditableWarning
+                                onBlur={(e) => updateElement(element.id, { content: e.currentTarget.textContent || '' })}
+                                className="outline-none w-full h-full overflow-hidden"
+                                style={{
+                                    fontSize: element.style.fontSize,
+                                    fontWeight: element.style.fontWeight,
+                                    fontStyle: element.style.fontStyle,
+                                    textDecoration: element.style.textDecoration,
+                                    textAlign: element.style.textAlign,
+                                    fontFamily: element.style.fontFamily,
+                                }}
+                            >
+                                {element.content}
+                            </div>
+                        )}
+                        {selectedElement?.id === element.id && (
+                            <>
+                                <ElementControls handleDuplicate={handleDuplicate} handleStyleChange={handleStyleChange} onDelete={handleDelete} selectedElement={selectedElement} />
+                                <ResizeContent onMouseDown={handleMouseDown} element={element} />
+                            </>
+                        )}
+                    </div>
+                ))}
+            </section>
+        </div>
+    );
+};
+
+export default EditorBoard;

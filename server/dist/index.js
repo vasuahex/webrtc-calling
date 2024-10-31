@@ -56,7 +56,12 @@ const mediaCodecs = [
         kind: 'audio',
         mimeType: 'audio/opus',
         clockRate: 48000,
-        channels: 2
+        channels: 2,
+        preferredPayloadType: 96,
+        rtcpFeedback: [
+            { type: "nack" },
+            { type: "nack", parameter: "pli" },
+        ],
     },
     {
         kind: 'video',
@@ -64,7 +69,13 @@ const mediaCodecs = [
         clockRate: 90000,
         parameters: {
             'x-google-start-bitrate': 1000
-        }
+        },
+        preferredPayloadType: 97,
+        rtcpFeedback: [
+            { type: "nack" },
+            { type: "ccm", parameter: "fir" },
+            { type: "goog-remb" },
+        ],
     },
     {
         kind: 'video',
@@ -109,7 +120,6 @@ function getNextWorker() {
 }
 function createWorkerFunc() {
     return __awaiter(this, void 0, void 0, function* () {
-        console.log(numCPUs);
         for (let i = 0; i < numCPUs; i++) {
             let worker = yield (0, mediasoup_1.createWorker)({
                 logLevel: 'warn',
@@ -122,7 +132,6 @@ function createWorkerFunc() {
                 setTimeout(() => process.exit(1), 2000);
             });
             workers.push(worker);
-            console.log(`Worker pid ${worker.pid}`);
         }
     });
 }
@@ -141,7 +150,6 @@ function createWebRtcTransport(router) {
                 },
             ],
             initialAvailableOutgoingBitrate: 1000000,
-            maxSctpMessageSize: 262144,
             enableUdp: true,
             enableTcp: true,
             preferUdp: true,
@@ -188,9 +196,10 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
         };
         socket.join(roomId);
         const rtpCapabilities = room.router.rtpCapabilities;
-        const existingProducers = Object.values(room.peers).flatMap(peer => peer.producers.map(producer => ({
+        const existingProducers = Object.entries(room.peers).flatMap(([peerId, peer]) => peer.producers.map(producer => ({
             producerId: producer.id,
-            producerSocketId: peer.socket.id
+            producerSocketId: peerId,
+            kind: producer.kind
         })));
         callback({ rtpCapabilities, existingProducers });
         socket.to(roomId).emit('peerJoined', { peerId: socket.id });
@@ -204,14 +213,6 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
         }
         try {
             const transport = yield createWebRtcTransport(router);
-            if (!rooms[roomId].peers[socket.id]) {
-                rooms[roomId].peers[socket.id] = {
-                    socket,
-                    transports: [],
-                    producers: [],
-                    consumers: [],
-                };
-            }
             rooms[roomId].peers[socket.id].transports.push({ transport, direction });
             transport.on('dtlsstatechange', (dtlsState) => {
                 if (dtlsState === 'closed') {
@@ -258,10 +259,14 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             callback({ error: 'Room or Transport not found' });
             return;
         }
-        const producer = yield transportObject.transport.produce({ kind, rtpParameters, appData, });
+        const producer = yield transportObject.transport.produce({ kind, rtpParameters, appData });
         rooms[roomId].peers[socket.id].producers.push(producer);
         producer.on('transportclose', () => {
             producer.close();
+            socket.to(roomId).emit('producerClosed', {
+                producerId: producer.id,
+                peerId: socket.id
+            });
         });
         callback({ id: producer.id });
         socket.to(roomId).emit('newProducer', {
@@ -331,7 +336,6 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
     }));
     const handlePeerLeave = (roomId, socketId) => {
         if (rooms[roomId] && rooms[roomId].peers[socketId]) {
-            console.log('User left room', socketId);
             rooms[roomId].peers[socketId].transports.forEach((transport) => transport.transport.close());
             rooms[roomId].peers[socketId].producers.forEach((producer) => producer.close());
             rooms[roomId].peers[socketId].consumers.forEach((consumer) => consumer.close());
@@ -357,8 +361,7 @@ app.get('/', (req, res) => {
     res.json({ message: "server started successfully" });
 });
 const port = process.env.PORT || 3000;
-let ip = process.env.IP;
-const newServer = httpsServer === null || httpsServer === void 0 ? void 0 : httpsServer.listen(port, ip, () => {
-    console.log(`server is running on port http://${ip}:${port}`);
+httpsServer === null || httpsServer === void 0 ? void 0 : httpsServer.listen(port, () => {
+    console.log(`Server is running on https://localhost:${port}`);
 });
 //# sourceMappingURL=index.js.map

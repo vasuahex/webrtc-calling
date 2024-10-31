@@ -28,6 +28,8 @@ process.on("uncaughtException", (err) => {
     console.log(`shutting down the server for handling uncaught Exception`);
     process.exit(1);
 });
+
+
 const createServer = (environment: string) => {
     if (environment === 'development') {
         const privatePath = path.join(__dirname, '../whatsapp-clone-app-privateKey.key');
@@ -56,19 +58,52 @@ const workers: Worker[] = [];
 const mediaCodecs: RtpCodecCapability[] =
     [
         {
+            /** Indicates this is an audio codec configuration */
             kind: 'audio',
+            /**
+             * Specifies the MIME type for the Opus codec, known for good audio quality at various bit rates.
+             * Format: <type>/<subtype>, e.g., audio/opus
+             */
             mimeType: 'audio/opus',
+            /**
+             * Specifies the number of audio samples processed per second (48,000 samples per second for high-quality audio).
+             * Higher values generally allow better audio quality.
+             */
             clockRate: 48000,
-            channels: 2
+            /** Specifies the number of audio channels (2 for stereo audio). */
+            channels: 2,
+            preferredPayloadType: 96, // Example value
+            /**
+             * Optional: Specifies a list of RTCP feedback mechanisms supported by the codec.
+             * Helps optimize codec behavior in response to network conditions.
+             */
+            rtcpFeedback: [
+                // Example values
+                { type: "nack" },
+                { type: "nack", parameter: "pli" },
+            ],
         },
         {
+            /** Indicates this is a video codec configuration */
             kind: 'video',
+            /** Specifies the MIME type for the VP8 codec, commonly used for video compression. */
             mimeType: 'video/VP8',
+            /** Specifies the clock rate, or the number of timing ticks per second (commonly 90,000 for video). */
             clockRate: 90000,
-            parameters:
-            {
+            /**
+             * Optional: Specifies codec-specific parameters.
+             * In this case, sets the starting bitrate for the codec.
+             */
+            parameters: {
                 'x-google-start-bitrate': 1000
-            }
+            },
+            preferredPayloadType: 97, // Example value
+            rtcpFeedback: [
+                // Example values
+                { type: "nack" },
+                { type: "ccm", parameter: "fir" },
+                { type: "goog-remb" },
+            ],
         },
         {
             kind: 'video',
@@ -131,7 +166,7 @@ function getNextWorker() {
     return worker;
 }
 async function createWorkerFunc() {
-    console.log(numCPUs);
+    // console.log(numCPUs);
 
     for (let i = 0; i < numCPUs; i++) {
         let worker = await createWorker({
@@ -147,7 +182,7 @@ async function createWorkerFunc() {
             setTimeout(() => process.exit(1), 2000)
         })
         workers.push(worker);
-        console.log(`Worker pid ${worker.pid}`);
+        // console.log(`Worker pid ${worker.pid}`);
     }
     // return worker;
 }
@@ -172,10 +207,11 @@ async function createWebRtcTransport(router: Router) {
 
         // maxIncomingBitrate: 1500000,
         initialAvailableOutgoingBitrate: 1000000,
-        maxSctpMessageSize: 262144,
+        // maxSctpMessageSize: 262144,
         enableUdp: true,
         enableTcp: true,
         preferUdp: true,
+        // enableSctp: true,
     });
 }
 
@@ -223,14 +259,13 @@ io.on('connection', async (socket) => {
 
         const rtpCapabilities = room.router.rtpCapabilities;
 
-        // Get all current producers in the room
-        const existingProducers = Object.values(room.peers).flatMap(peer =>
+        const existingProducers = Object.entries(room.peers).flatMap(([peerId, peer]) =>
             peer.producers.map(producer => ({
                 producerId: producer.id,
-                producerSocketId: peer.socket.id
+                producerSocketId: peerId,
+                kind: producer.kind
             }))
         );
-
         callback({ rtpCapabilities, existingProducers });
         // Notify other peers in the room about the new peer
         socket.to(roomId).emit('peerJoined', { peerId: socket.id });
@@ -247,14 +282,14 @@ io.on('connection', async (socket) => {
         try {
             const transport = await createWebRtcTransport(router);
             // EXTRA LINE for safeside.
-            if (!rooms[roomId].peers[socket.id]) {
-                rooms[roomId].peers[socket.id] = {
-                    socket,
-                    transports: [],
-                    producers: [],
-                    consumers: [],
-                };
-            }
+            // if (!rooms[roomId].peers[socket.id]) {
+            //     rooms[roomId].peers[socket.id] = {
+            //         socket,
+            //         transports: [],
+            //         producers: [],
+            //         consumers: [],
+            //     };
+            // }
             rooms[roomId].peers[socket.id].transports.push({ transport, direction });
 
             transport.on('dtlsstatechange', (dtlsState) => {
@@ -262,7 +297,6 @@ io.on('connection', async (socket) => {
                     transport.close();
                 }
             });
-
             transport.on('@close', () => {
                 console.log('Transport closed');
             });
@@ -284,7 +318,6 @@ io.on('connection', async (socket) => {
 
     socket.on('connectTransport', async ({ roomId, transportId, dtlsParameters }, callback) => {
         try {
-
             const transportObject = rooms[roomId]?.peers[socket.id].transports.find((t) => t.transport.id === transportId);
 
             if (!transportObject) {
@@ -309,16 +342,21 @@ io.on('connection', async (socket) => {
             return;
         }
 
-        const producer = await transportObject.transport.produce({ kind, rtpParameters, appData, });
+        const producer = await transportObject.transport.produce({ kind, rtpParameters, appData });
 
         rooms[roomId].peers[socket.id].producers.push(producer);
 
         producer.on('transportclose', () => {
             producer.close();
+            // Notify all peers about producer closure
+            socket.to(roomId).emit('producerClosed', {
+                producerId: producer.id,
+                peerId: socket.id
+            });
         });
 
         callback({ id: producer.id });
-
+        // Notify all peers in the room about the new producer
         // Inform other peers in the room about the new producer
         socket.to(roomId).emit('newProducer', {
             producerId: producer.id,
@@ -334,6 +372,7 @@ io.on('connection', async (socket) => {
         try {
             const router = rooms[roomId]?.router;
             const producer = Object.values(rooms[roomId].peers).flatMap((peer) => peer.producers).find((p) => p.id === producerId);
+            // console.log(producer);
 
             if (!router || !producer) {
                 callback({ error: 'Room or Producer not found' });
@@ -399,7 +438,7 @@ io.on('connection', async (socket) => {
 
     const handlePeerLeave = (roomId: string, socketId: string) => {
         if (rooms[roomId] && rooms[roomId].peers[socketId]) {
-            console.log('User left room', socketId);
+            // console.log('User left room', socketId);
 
             // Close transports, producers, and consumers
             rooms[roomId].peers[socketId].transports.forEach((transport) => transport.transport.close());
@@ -436,7 +475,6 @@ app.get('/', (req: Request, res: Response) => {
 
 
 const port = process.env.PORT || 3000;
-
 // let ip = process.env.IP as any
 // const newServer = httpsServer?.listen(port, ip, () => {
 //     console.log(`server is running on port http://${ip}:${port}`);

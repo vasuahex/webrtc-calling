@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, CSSProperties } from 'react';
 import { Device } from 'mediasoup-client';
-import MediaSoupTypes, { RtpCapabilities, Transport, Producer } from 'mediasoup-client/lib/types';
+import MediaSoupTypes, { RtpCapabilities, Transport, Producer, } from 'mediasoup-client/lib/types';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'react-toastify';
 import { RingLoader } from 'react-spinners';
@@ -10,6 +10,18 @@ import ReactPlayer from 'react-player';
 
 const cssOverride: CSSProperties = {
 }
+interface ExistingProducer {
+  producerId: string;
+  producerSocketId: string;
+}
+
+// Define the response type for the join callback
+interface JoinResponse {
+  error?: string;
+  rtpCapabilities?: RtpCapabilities;
+  existingProducers?: ExistingProducer[];
+}
+
 const params = {
   encodings: [
     {
@@ -46,10 +58,8 @@ const VideoCall: React.FC = () => {
   const [socketId, setSocketId] = useState('')
   const [roomId, setRoomId] = useState<string>(''); // room id from socket create room
   const [joinRoomId, setJoinRoomId] = useState<string>(''); // room id from input field
-  // const [consumers, setConsumers] = useState<{ [producerId: string]: { combinedStream?: MediaStream } }>({});
   const [consumers, setConsumers] = useState<{ [consumerId: string]: Consumer }>({});
 
-  // const [consumers, setConsumers] = useState<{ [producerId: string]: { audio?: MediaStream, video?: MediaStream } }>({});
   const deviceRef = useRef<MediaSoupTypes.Device | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
@@ -74,10 +84,35 @@ const VideoCall: React.FC = () => {
       console.log(`Peer ${peerId} left the room`);
       removeConsumer(peerId);
     });
+
+    socketRef.current.on('producerClosed', ({ producerId, peerId }) => {
+      console.log(`Producer ${producerId} from peer ${peerId} closed`);
+      removeConsumer(peerId);
+    });
+
+
+    socketRef.current.on('peerJoined', async ({ peerId }) => {
+      toast.info(`user joined the room: ${peerId}`, { position: "top-left" })
+    });
+
+    socketRef.current.on('newProducer', async ({ producerId, roomId, producerSocketId }) => {
+      if (deviceRef.current && roomId) {
+        console.log(`Received newProducer event for producer ${producerSocketId} in room ${roomId}`);
+
+        await createRecvTransport(producerId, deviceRef.current, roomId, producerSocketId);
+      } else {
+        toast.error("Device not set when trying to create receive transport", { position: "top-left" })
+      }
+    });
+
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current.off('peerLeft');
+        socketRef.current.off('connection-success')
+        socketRef.current.off('producerClosed');
+        socketRef.current.off('newProducer');
+        socketRef.current.off('peerJoined');
       }
     };
   }, []);
@@ -96,32 +131,6 @@ const VideoCall: React.FC = () => {
       return newConsumers;
     });
   };
-
-  useEffect(() => {
-    if (!socketRef.current) return;
-
-    socketRef.current.on('newProducer', async ({ producerId, roomId, producerSocketId }) => {
-      if (deviceRef.current && roomId) {
-        console.log(`Received newProducer event for producer ${producerId} in room ${roomId}`);
-
-        await createRecvTransport(producerId, deviceRef.current, roomId, producerSocketId);
-      } else {
-        toast.error("Device not set when trying to create receive transport", { position: "top-left" })
-      }
-    });
-    socketRef.current.on('peerJoined', async ({ peerId }) => {
-      toast.info(`user joined the room: ${peerId}`, { position: "top-left" })
-    });
-
-
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.off('newProducer');
-      }
-    };
-  }, [socketRef.current]);
-
 
   const createRoom = async () => {
     try {
@@ -147,7 +156,7 @@ const VideoCall: React.FC = () => {
   const joinRoom = async () => {
     if (!socketRef.current || !joinRoomId) return;
     setIsLoading(true)
-    socketRef.current.emit('join', { roomId: joinRoomId }, async (response: any) => {
+    socketRef.current.emit('join', { roomId: joinRoomId }, async (response: JoinResponse) => {
       if (response.error) {
         toast.error(`${response.error}`, { position: "top-left" })
         setIsLoading(false)
@@ -156,20 +165,25 @@ const VideoCall: React.FC = () => {
       }
 
       const { rtpCapabilities, existingProducers } = response;
-
-      // setRtpCapabilities(rtpCapabilities);
-
       try {
-        const device = new Device();
-        await device.load({ routerRtpCapabilities: rtpCapabilities });
-        deviceRef.current = device
+        if (rtpCapabilities && existingProducers) {
 
-        setRoomId(joinRoomId)
-        await createSendTransport(device, joinRoomId);
+          const device = new Device();
+          await device.load({ routerRtpCapabilities: rtpCapabilities });
+          deviceRef.current = device
+          setRoomId(joinRoomId)
 
-        // Create receive transports for existing producers
-        for (const producer of existingProducers) {
-          await createRecvTransport(producer.producerId, device, joinRoomId, producer.producerSocketId);
+          await createSendTransport(device, joinRoomId);
+          console.log('Setting up receive transports for existing producers:', existingProducers);
+
+          // Create receive transports for existing producers
+          for (const producer of existingProducers) {
+            console.log(producer);
+
+            await createRecvTransport(producer.producerId, device, joinRoomId, producer.producerSocketId);
+          }
+        } else {
+          toast.error(`existingProducers or rtpCapabilities any one is missing.`)
         }
       } catch (error) {
         setIsLoading(false)
@@ -186,8 +200,9 @@ const VideoCall: React.FC = () => {
         toast.error(`${params.error}`, { position: "top-left" })
         return;
       }
+
       // through which audio/video transfers. (medium)
-      const transport = device!.createSendTransport(params);
+      const transport = device.createSendTransport(params);
 
       transport.on('connect', async ({ dtlsParameters }, callback) => {
         socketRef.current!.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters }, callback);
@@ -224,11 +239,6 @@ const VideoCall: React.FC = () => {
         height: { min: 400, max: 1080, },
       },
     });
-    // console.log(localStream.getVideoTracks()[0]);
-
-    // const stream = new MediaStream([localStream.getVideoTracks()[0]]);
-    // console.log(stream);
-
     setLocalstream(localStream)
     if (!localStream) {
       console.error('No local stream available');
@@ -256,15 +266,14 @@ const VideoCall: React.FC = () => {
         // close video track
 
       })
+      setIsLoading(false)
+      setIsInRoom(true)
     }
-    setIsLoading(false)
-    setIsInRoom(true)
   };
 
   const createRecvTransport = async (producerId: string, currentDevice: MediaSoupTypes.Device, roomId: string, peerId: string) => {
     if (!socketRef.current || !currentDevice) return;
     socketRef.current.emit('createWebRtcTransport', { roomId, direction: 'recv' }, async ({ params }: any) => {
-
       if (params.error) {
         toast.error(params.error, { position: "top-left" })
         console.error(params.error);
@@ -281,61 +290,137 @@ const VideoCall: React.FC = () => {
     });
   };
 
+  // const connectRecvTransport = async (transport: Transport, producerId: string, device: MediaSoupTypes.Device, roomId: string, peerId: string) => {
+  //   if (!socketRef.current || !roomId) return;
+
+  //   socketRef.current.emit('consume', { roomId, producerId, rtpCapabilities: device!.rtpCapabilities },
+  //     async ({ id, producerId, kind, rtpParameters }: any) => {
+  //       const consumer = await transport.consume({
+  //         id,
+  //         producerId,
+  //         kind,
+  //         rtpParameters,
+  //       });
+  //       consumer.on('transportclose', () => {
+  //         console.log("consumer transport closed.");
+  //       })
+  //       const stream = new MediaStream([consumer.track]);
+  //       // setConsumers((prevConsumers) => {
+  //       //   const newConsumers = {
+  //       //     ...prevConsumers,
+  //       //     [consumer.id]: {
+  //       //       peerId: peerId,
+  //       //       consumerId: consumer.id,
+  //       //       combinedStream: stream,
+  //       //     },
+  //       //   };
+  //       //   console.log(`Updated consumers state. Total consumers: ${Object.keys(newConsumers).length}`);
+  //       //   return newConsumers;
+  //       // });
+  //       setConsumers((prevConsumers) => {
+  //         if (prevConsumers[consumer.id]) {
+  //           console.log(`Consumer ${consumer.id} already exists. Skipping.`);
+  //           return prevConsumers;
+  //         }
+  //         const newConsumers = {
+  //           ...prevConsumers,
+  //           [consumer.id]: {
+  //             peerId: peerId,
+  //             consumerId: consumer.id,
+  //             combinedStream: stream,
+  //           },
+  //         };
+  //         console.log(`Updated consumers state. Total consumers: ${Object.keys(newConsumers).length}`);
+  //         return newConsumers;
+  //       });
+  //       socketRef.current!.emit('resumeConsumer', { roomId, consumerId: id }, ({ params }: any) => {
+  //         if (params.error) {
+  //           toast.error(params.error, { position: "top-left" })
+  //           console.error(params.error);
+  //           return;
+  //         }
+  //       });
+
+  //     }
+  //   );
+  // };
+
+
   const connectRecvTransport = async (transport: Transport, producerId: string, device: MediaSoupTypes.Device, roomId: string, peerId: string) => {
     if (!socketRef.current || !roomId) return;
 
-    socketRef.current.emit('consume', { roomId, producerId, rtpCapabilities: device!.rtpCapabilities },
-      async ({ id, producerId, kind, rtpParameters }: any) => {
-        const consumer = await transport.consume({
-          id,
-          producerId,
-          kind,
-          rtpParameters,
-        });
-        consumer.on('transportclose', () => {
-          console.log("consumer transport closed.");
-        })
-        const stream = new MediaStream([consumer.track]);
-        // setConsumers((prevConsumers) => {
-        //   const newConsumers = {
-        //     ...prevConsumers,
-        //     [consumer.id]: {
-        //       peerId: peerId,
-        //       consumerId: consumer.id,
-        //       combinedStream: stream,
-        //     },
-        //   };
-        //   console.log(`Updated consumers state. Total consumers: ${Object.keys(newConsumers).length}`);
-        //   return newConsumers;
-        // });
-        setConsumers((prevConsumers) => {
-          if (prevConsumers[consumer.id]) {
-            console.log(`Consumer ${consumer.id} already exists. Skipping.`);
-            return prevConsumers;
-          }
-          const newConsumers = {
-            ...prevConsumers,
-            [consumer.id]: {
-              peerId: peerId,
-              consumerId: consumer.id,
-              combinedStream: stream,
-            },
-          };
-          console.log(`Updated consumers state. Total consumers: ${Object.keys(newConsumers).length}`);
-          return newConsumers;
-        });
-        socketRef.current!.emit('resumeConsumer', { roomId, consumerId: id }, ({ params }: any) => {
-          if (params.error) {
-            toast.error(params.error, { position: "top-left" })
-            console.error(params.error);
-            return;
-          }
-        });
+    socketRef.current.emit('consume', {
+      roomId,
+      producerId,
+      rtpCapabilities: device!.rtpCapabilities
+    },
+      async ({ id, producerId, kind, rtpParameters, error }: any) => {
+        if (error) {
+          console.error('Consume error:', error);
+          return;
+        }
 
+        try {
+          const consumer = await transport.consume({
+            id,
+            producerId,
+            kind,
+            rtpParameters,
+          });
+
+          // Create a new MediaStream with both audio and video tracks
+          const stream = new MediaStream([consumer.track]);
+
+          setConsumers(prevConsumers => {
+            // Check if this consumer already exists
+            if (prevConsumers[consumer.id]) {
+              return prevConsumers;
+            }
+
+            // Add the new consumer
+            return {
+              ...prevConsumers,
+              [consumer.id]: {
+                peerId,
+                consumerId: consumer.id,
+                kind: consumer.kind,
+                combinedStream: stream,
+                consumer: consumer // Store the consumer instance
+              }
+            };
+          });
+
+          // Resume the consumer immediately after creating it
+          await new Promise((resolve, reject) => {
+            socketRef.current!.emit('resumeConsumer',
+              { roomId, consumerId: id },
+              ({ params }: any) => {
+                if (params.error) {
+                  reject(params.error);
+                  return;
+                }
+                resolve(true);
+              }
+            );
+          });
+
+          // Setup cleanup
+          consumer.on('transportclose', () => {
+            console.log('Consumer transport closed', consumer.id);
+            removeConsumer(peerId);
+          });
+
+          // consumer.on('@producerclose', () => {
+          //   console.log('Consumer producer closed', consumer.id);
+          //   removeConsumer(peerId);
+          // });
+
+        } catch (error) {
+          console.error('Error in consume handler:', error);
+        }
       }
     );
   };
-
   const handleDisconnectLeave = () => {
     setRoomId('');
     deviceRef.current = null;

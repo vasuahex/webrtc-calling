@@ -119,7 +119,7 @@ const AudioRecorder: React.FC = () => {
                 stream.getTracks().forEach(track => track.stop());
 
                 // Load audio data and draw recorded waveform using wavesurfer
-                if (wavesurferRef.current) {
+                if (wavesurferRef.current) {    
                     wavesurferRef.current.load(audioUrl);
                 }
             });

@@ -7,7 +7,7 @@ import { io, Socket } from 'socket.io-client';
 import { toast } from 'react-toastify';
 import { RingLoader } from 'react-spinners';
 import ReactPlayer from 'react-player';
-
+import iceServers from "../static"
 const cssOverride: CSSProperties = {
 }
 interface ExistingProducer {
@@ -202,7 +202,7 @@ const VideoCall: React.FC = () => {
       }
 
       // through which audio/video transfers. (medium)
-      const transport = device.createSendTransport(params);
+      const transport = device.createSendTransport({ ...params, iceServers });
 
       transport.on('connect', async ({ dtlsParameters }, callback) => {
         socketRef.current!.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters }, callback);
@@ -280,7 +280,7 @@ const VideoCall: React.FC = () => {
         return;
       }
 
-      const transport = currentDevice.createRecvTransport(params);
+      const transport = currentDevice.createRecvTransport({...params, iceServers });
 
       transport.on('connect', ({ dtlsParameters }, callback) => {
         socketRef.current!.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters }, callback);

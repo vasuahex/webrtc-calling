@@ -170,7 +170,7 @@ async function createWorkerFunc() {
 
     for (let i = 0; i < numCPUs; i++) {
         let worker = await createWorker({
-            logLevel: 'warn',
+            logLevel: 'debug',
             rtcMinPort: 10000,
             rtcMaxPort: 10100 + i * 100,
             logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
@@ -205,13 +205,13 @@ async function createWebRtcTransport(router: Router) {
             },
         ],
 
-        // maxIncomingBitrate: 1500000,
         initialAvailableOutgoingBitrate: 1000000,
         // maxSctpMessageSize: 262144,
         enableUdp: true,
         enableTcp: true,
         preferUdp: true,
-        // enableSctp: true,
+        enableSctp: true,
+        // webRtcServer:
     });
 }
 

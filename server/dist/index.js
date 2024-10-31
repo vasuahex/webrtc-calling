@@ -122,7 +122,7 @@ function createWorkerFunc() {
     return __awaiter(this, void 0, void 0, function* () {
         for (let i = 0; i < numCPUs; i++) {
             let worker = yield (0, mediasoup_1.createWorker)({
-                logLevel: 'warn',
+                logLevel: 'debug',
                 rtcMinPort: 10000,
                 rtcMaxPort: 10100 + i * 100,
                 logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
@@ -153,6 +153,7 @@ function createWebRtcTransport(router) {
             enableUdp: true,
             enableTcp: true,
             preferUdp: true,
+            enableSctp: true,
         });
     });
 }

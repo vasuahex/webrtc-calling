@@ -1,4 +1,3 @@
-
 import express, { Request, Response } from 'express';
 import https from 'https';
 import http from 'http';
@@ -8,27 +7,23 @@ import fs from 'fs';
 import path from 'path';
 import cors from 'cors';
 import "dotenv/config";
-
-
+import os from "os";
+import Helpers from "./utils/Helpers";
+import RoomManager, { rooms } from "./RoomManager"
 import {
     Worker,
     Router,
-    Transport,
-    Producer,
-    Consumer,
     RtpCodecCapability,
-    WorkerLogTag,
 } from 'mediasoup/node/lib/types';
-import Helpers from "./utils/Helpers"
+
 const app = express();
-import os from "os"
+
 // Handle uncaught Exception
 process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err);
     console.log(`shutting down the server for handling uncaught Exception`);
     process.exit(1);
 });
-
 
 const createServer = (environment: string) => {
     if (environment === 'development') {
@@ -43,8 +38,8 @@ const createServer = (environment: string) => {
         return http.createServer(app)
     }
 }
-const httpsServer = createServer(process.env.NODE_ENV as string)
 
+const httpsServer = createServer(process.env.NODE_ENV as string);
 const io = new Server(httpsServer, {
     cors: {
         origin: '*',
@@ -52,169 +47,116 @@ const io = new Server(httpsServer, {
     },
 });
 
-
 app.use(cors());
+
+// MediaSoup setup
 const workers: Worker[] = [];
-const mediaCodecs: RtpCodecCapability[] =
-    [
-        {
-            /** Indicates this is an audio codec configuration */
-            kind: 'audio',
-            /**
-             * Specifies the MIME type for the Opus codec, known for good audio quality at various bit rates.
-             * Format: <type>/<subtype>, e.g., audio/opus
-             */
-            mimeType: 'audio/opus',
-            /**
-             * Specifies the number of audio samples processed per second (48,000 samples per second for high-quality audio).
-             * Higher values generally allow better audio quality.
-             */
-            clockRate: 48000,
-            /** Specifies the number of audio channels (2 for stereo audio). */
-            channels: 2,
-            preferredPayloadType: 96, // Example value
-            /**
-             * Optional: Specifies a list of RTCP feedback mechanisms supported by the codec.
-             * Helps optimize codec behavior in response to network conditions.
-             */
-            rtcpFeedback: [
-                // Example values
-                { type: "nack" },
-                { type: "nack", parameter: "pli" },
-            ],
-        },
-        {
-            /** Indicates this is a video codec configuration */
-            kind: 'video',
-            /** Specifies the MIME type for the VP8 codec, commonly used for video compression. */
-            mimeType: 'video/VP8',
-            /** Specifies the clock rate, or the number of timing ticks per second (commonly 90,000 for video). */
-            clockRate: 90000,
-            /**
-             * Optional: Specifies codec-specific parameters.
-             * In this case, sets the starting bitrate for the codec.
-             */
-            parameters: {
-                'x-google-start-bitrate': 1000
-            },
-            preferredPayloadType: 97, // Example value
-            rtcpFeedback: [
-                // Example values
-                { type: "nack" },
-                { type: "ccm", parameter: "fir" },
-                { type: "goog-remb" },
-            ],
-        },
-        {
-            kind: 'video',
-            mimeType: 'video/VP9',
-            clockRate: 90000,
-            parameters:
-            {
-                'profile-id': 2,
-                'x-google-start-bitrate': 1000
-            }
-        },
-        {
-            kind: 'video',
-            mimeType: 'video/h264',
-            clockRate: 90000,
-            parameters:
-            {
-                'packetization-mode': 1,
-                'profile-level-id': '4d0032',
-                'level-asymmetry-allowed': 1,
-                'x-google-start-bitrate': 1000
-            }
-        },
-        {
-            kind: 'video',
-            mimeType: 'video/h264',
-            clockRate: 90000,
-            parameters:
-            {
-                'packetization-mode': 1,
-                'profile-level-id': '42e01f',
-                'level-asymmetry-allowed': 1,
-                'x-google-start-bitrate': 1000
-            }
-        }
-    ]
 const numCPUs = os.cpus().length;
-
-
-// let workers: Worker[];
-let router: Router;
-const rooms: {
-    [roomId: string]: {
-        router: Router;
-        peers: {
-            [peerId: string]: {
-                socket: any;
-                transports: { transport: Transport, direction: 'send' | 'recv' }[];
-                producers: Producer[];
-                consumers: Consumer[];
-            };
-        };
-    };
-} = {};
 let nextWorkerIndex = 0;
+
+const mediaCodecs: RtpCodecCapability[] = [
+    {
+        kind: 'audio',
+        mimeType: 'audio/opus',
+        clockRate: 48000,
+        channels: 2,
+        preferredPayloadType: 96,
+        // rtcpFeedback: [
+        //     { type: "nack" },
+        //     { type: "nack", parameter: "pli" },
+        // ],
+    },
+    {
+        kind: 'video',
+        mimeType: 'video/VP8',
+        clockRate: 90000,
+        parameters: {
+            'x-google-start-bitrate': 1000
+        },
+        preferredPayloadType: 97,
+        // rtcpFeedback: [
+        //     { type: "nack" },
+        //     { type: "ccm", parameter: "fir" },
+        //     { type: "goog-remb" },
+        // ],
+    },
+    {
+        kind: 'video',
+        mimeType: 'video/VP9',
+        clockRate: 90000,
+        parameters:
+        {
+            'profile-id': 2,
+            'x-google-start-bitrate': 1000
+        }
+    },
+    {
+        kind: 'video',
+        mimeType: 'video/h264',
+        clockRate: 90000,
+        parameters:
+        {
+            'packetization-mode': 1,
+            'profile-level-id': '4d0032',
+            'level-asymmetry-allowed': 1,
+            'x-google-start-bitrate': 1000
+        }
+    },
+    {
+        kind: 'video',
+        mimeType: 'video/h264',
+        clockRate: 90000,
+        parameters:
+        {
+            'packetization-mode': 1,
+            'profile-level-id': '42e01f',
+            'level-asymmetry-allowed': 1,
+            'x-google-start-bitrate': 1000
+        }
+    }
+];
+
 function getNextWorker() {
-    // Simple round-robin
     const worker = workers[nextWorkerIndex];
     nextWorkerIndex = (nextWorkerIndex + 1) % workers.length;
     return worker;
 }
-async function createWorkerFunc() {
-    // console.log(numCPUs);
 
+async function createWorkerFunc() {
     for (let i = 0; i < numCPUs; i++) {
-        let worker = await createWorker({
+        const worker = await createWorker({
             logLevel: 'debug',
             rtcMinPort: 10000,
             rtcMaxPort: 10100 + i * 100,
             logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
-            // disableLiburing: false
         });
 
         worker.on('died', () => {
-            console.error('mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid)
-            setTimeout(() => process.exit(1), 2000)
-        })
-        workers.push(worker);
-        // console.log(`Worker pid ${worker.pid}`);
-    }
-    // return worker;
-}
-createWorkerFunc().then(() => {
-    console.log(`workers created.`);
+            console.error('mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid);
+            setTimeout(() => process.exit(1), 2000);
+        });
 
-})
-console.log("Helpers.getPublicIp()", Helpers.getPublicIp());
-Helpers.getLocalIp().then((ip) => console.log("Helpers.getLocalIp() : ", ip))
+        workers.push(worker);
+    }
+}
 
 async function createWebRtcTransport(router: Router) {
     return router.createWebRtcTransport({
         listenIps: [
             {
                 ip: '0.0.0.0',
-                // announcedIp: await Helpers.getPublicIp(), 27.6.44.106
                 announcedIp: Helpers.getPublicIp(),
-                // announcedIp: '127.0.0.1',
-                // Change this to your server's public IP
             },
         ],
-
         initialAvailableOutgoingBitrate: 1000000,
-        // maxSctpMessageSize: 262144,
         enableUdp: true,
         enableTcp: true,
         preferUdp: true,
         enableSctp: true,
-        // webRtcServer:
     });
 }
 
+// Socket.IO handlers
 io.on('connection', async (socket) => {
     socket.emit('connection-success', {
         socketId: socket.id,
@@ -222,58 +164,46 @@ io.on('connection', async (socket) => {
 
     socket.on('createRoom', async (callback) => {
         const worker = getNextWorker();
-        router = await worker.createRouter({ mediaCodecs });
+        const router = await worker.createRouter({ mediaCodecs });
         const roomId = Math.random().toString(36).substring(2, 7);
-        rooms[roomId] = {
-            router: router,
-            peers: {},
-        };
-        // Join the room immediately after creating it
-        rooms[roomId].peers[socket.id] = {
-            socket,
-            transports: [],
-            producers: [],
-            consumers: []
-        };
+
+        // Create room using RoomManager
+        RoomManager.createRoom(roomId, router);
+        RoomManager.addPeer(roomId, socket.id, socket);
+
         socket.join(roomId);
         callback({
             roomId,
             rtpCapabilities: router.rtpCapabilities,
         });
     });
+
     socket.on('join', async ({ roomId }, callback) => {
-        const room = rooms[roomId];
-        if (!room) {
-            callback({
-                error: 'Room does not exist',
-            });
+        const router = RoomManager.getRouter(roomId);
+        if (!router) {
+            callback({ error: 'Room does not exist' });
             return;
         }
-        room.peers[socket.id] = {
-            socket,
-            transports: [],
-            producers: [],
-            consumers: [],
-        };
-        socket.join(roomId); // Join the socket.io room
 
-        const rtpCapabilities = room.router.rtpCapabilities;
+        RoomManager.addPeer(roomId, socket.id, socket);
+        socket.join(roomId);
 
-        const existingProducers = Object.entries(room.peers).flatMap(([peerId, peer]) =>
-            peer.producers.map(producer => ({
-                producerId: producer.id,
-                producerSocketId: peerId,
-                kind: producer.kind
-            }))
-        );
+        const rtpCapabilities = router.rtpCapabilities;
+        const producers = RoomManager.getAllProducers(roomId);
+
+        const existingProducers = producers.map(producer => ({
+            producerId: producer.id,
+            producerSocketId: Array.from(RoomManager.getPeers(roomId)?.entries() || [])
+                .find(([_, peer]) => peer.producers.has(producer))?.[0],
+            kind: producer.kind
+        }));
+
         callback({ rtpCapabilities, existingProducers });
-        // Notify other peers in the room about the new peer
         socket.to(roomId).emit('peerJoined', { peerId: socket.id });
-
     });
 
     socket.on('createWebRtcTransport', async ({ roomId, direction }, callback) => {
-        const router = rooms[roomId]?.router;
+        const router = RoomManager.getRouter(roomId);
         if (!router) {
             callback({ params: { error: 'Room not found' } });
             return;
@@ -281,22 +211,14 @@ io.on('connection', async (socket) => {
 
         try {
             const transport = await createWebRtcTransport(router);
-            // EXTRA LINE for safeside.
-            // if (!rooms[roomId].peers[socket.id]) {
-            //     rooms[roomId].peers[socket.id] = {
-            //         socket,
-            //         transports: [],
-            //         producers: [],
-            //         consumers: [],
-            //     };
-            // }
-            rooms[roomId].peers[socket.id].transports.push({ transport, direction });
+            RoomManager.addTransport(roomId, socket.id, { transport, direction });
 
             transport.on('dtlsstatechange', (dtlsState) => {
                 if (dtlsState === 'closed') {
                     transport.close();
                 }
             });
+
             transport.on('@close', () => {
                 console.log('Transport closed');
             });
@@ -315,17 +237,15 @@ io.on('connection', async (socket) => {
         }
     });
 
-
     socket.on('connectTransport', async ({ roomId, transportId, dtlsParameters }, callback) => {
         try {
-            const transportObject = rooms[roomId]?.peers[socket.id].transports.find((t) => t.transport.id === transportId);
-
-            if (!transportObject) {
+            const transportInfo = RoomManager.findTransport(roomId, socket.id, transportId);
+            if (!transportInfo) {
                 callback({ error: 'Transport not found' });
                 return;
             }
 
-            await transportObject.transport.connect({ dtlsParameters });
+            await transportInfo.transport.connect({ dtlsParameters });
             callback();
         } catch (error: any) {
             callback({ error: error.message });
@@ -333,22 +253,24 @@ io.on('connection', async (socket) => {
     });
 
     socket.on('produce', async ({ roomId, transportId, kind, rtpParameters, appData }, callback) => {
+        const router = RoomManager.getRouter(roomId);
+        const transportInfo = RoomManager.findTransport(roomId, socket.id, transportId);
 
-        const router = rooms[roomId]?.router;
-        const transportObject = rooms[roomId]?.peers[socket.id].transports.find((t) => t.transport.id === transportId);
-
-        if (!router || !transportObject) {
+        if (!router || !transportInfo) {
             callback({ error: 'Room or Transport not found' });
             return;
         }
 
-        const producer = await transportObject.transport.produce({ kind, rtpParameters, appData });
+        const producer = await transportInfo.transport.produce({
+            kind,
+            rtpParameters,
+            appData
+        });
 
-        rooms[roomId].peers[socket.id].producers.push(producer);
+        RoomManager.addProducer(roomId, socket.id, producer);
 
         producer.on('transportclose', () => {
             producer.close();
-            // Notify all peers about producer closure
             socket.to(roomId).emit('producerClosed', {
                 producerId: producer.id,
                 peerId: socket.id
@@ -356,23 +278,19 @@ io.on('connection', async (socket) => {
         });
 
         callback({ id: producer.id });
-        // Notify all peers in the room about the new producer
-        // Inform other peers in the room about the new producer
         socket.to(roomId).emit('newProducer', {
             producerId: producer.id,
             producerSocketId: socket.id,
             roomId,
             kind
         });
-
-
     });
 
     socket.on('consume', async ({ roomId, producerId, rtpCapabilities }, callback) => {
         try {
-            const router = rooms[roomId]?.router;
-            const producer = Object.values(rooms[roomId].peers).flatMap((peer) => peer.producers).find((p) => p.id === producerId);
-            // console.log(producer);
+            const router = RoomManager.getRouter(roomId);
+            const producers = RoomManager.getAllProducers(roomId);
+            const producer = producers.find(p => p.id === producerId);
 
             if (!router || !producer) {
                 callback({ error: 'Room or Producer not found' });
@@ -384,7 +302,9 @@ io.on('connection', async (socket) => {
                 return;
             }
 
-            const recvTransport = rooms[roomId].peers[socket.id].transports.find(t => t.direction === 'recv');
+            const peer = RoomManager.getPeer(roomId, socket.id);
+            const recvTransport = Array.from(peer?.transports || [])
+                .find(t => t.direction === 'recv');
 
             if (!recvTransport) {
                 callback({ error: 'Receive transport not found' });
@@ -397,7 +317,7 @@ io.on('connection', async (socket) => {
                 paused: true,
             });
 
-            rooms[roomId].peers[socket.id].consumers.push(consumer);
+            RoomManager.addConsumer(roomId, socket.id, consumer);
 
             consumer.on('transportclose', () => {
                 consumer.close();
@@ -417,11 +337,14 @@ io.on('connection', async (socket) => {
         } catch (error: any) {
             callback({ error: error.message });
         }
-
     });
+
     socket.on('resumeConsumer', async ({ roomId, consumerId }, callback) => {
         try {
-            const consumer = rooms[roomId]?.peers[socket.id].consumers.find((c) => c.id === consumerId);
+
+            const peer = RoomManager.getPeer(roomId, socket.id);
+            const consumer = Array.from(peer?.consumers || [])
+                .find(c => c.id === consumerId);
 
             if (!consumer) {
                 callback({ params: { error: 'Consumer not found' } });
@@ -432,54 +355,35 @@ io.on('connection', async (socket) => {
             callback({ params: "success" });
         } catch (error: any) {
             callback({ params: { error: error.message } });
-            return
         }
     });
 
-    const handlePeerLeave = (roomId: string, socketId: string) => {
-        if (rooms[roomId] && rooms[roomId].peers[socketId]) {
-            // console.log('User left room', socketId);
-
-            // Close transports, producers, and consumers
-            rooms[roomId].peers[socketId].transports.forEach((transport) => transport.transport.close());
-            rooms[roomId].peers[socketId].producers.forEach((producer) => producer.close());
-            rooms[roomId].peers[socketId].consumers.forEach((consumer) => consumer.close());
-
-            // Remove the peer from the room
-            delete rooms[roomId].peers[socketId];
-
-            // Notify other peers in the room
-            socket.to(roomId).emit('peerLeft', { peerId: socketId });
-
-            // If the room is empty, remove it
-            if (Object.keys(rooms[roomId].peers).length === 0) {
-                delete rooms[roomId];
-            }
-        }
-    };
     socket.on('leaveRoom', ({ roomId }) => {
-        handlePeerLeave(roomId, socket.id);
+        RoomManager.removePeer(roomId, socket.id);
+        socket.to(roomId).emit('peerLeft', { peerId: socket.id });
     });
 
     socket.on('disconnect', () => {
-        for (const roomId in rooms) {
-            if (rooms[roomId].peers[socket.id]) {
-                socket.emit('leaveRoom', { roomId });
+        // Find all rooms this socket is in and remove the peer
+        rooms.forEach((_, roomId) => {
+            if (RoomManager.getPeer(roomId, socket.id)) {
+                RoomManager.removePeer(roomId, socket.id);
+                socket.to(roomId).emit('peerLeft', { peerId: socket.id });
             }
-        }
+        });
     });
 });
+
+// Initialize workers and start server
+createWorkerFunc().then(() => {
+    console.log('Workers created');
+    const port = process.env.PORT || 3000;
+
+    httpsServer?.listen(port, () => {
+        console.log(`Server is running on https://localhost:${port}`);
+    });
+});
+
 app.get('/', (req: Request, res: Response) => {
-    res.json({ message: "server started successfully" })
-})
-
-
-const port = process.env.PORT || 3000;
-// let ip = process.env.IP as any
-// const newServer = httpsServer?.listen(port, ip, () => {
-//     console.log(`server is running on port http://${ip}:${port}`);
-// });
-
-httpsServer?.listen(port, () => {
-    console.log(`Server is running on https://localhost:${port}`);
+    res.json({ message: "server started successfully" });
 });

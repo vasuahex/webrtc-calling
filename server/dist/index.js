@@ -1,4 +1,27 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -21,9 +44,10 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const cors_1 = __importDefault(require("cors"));
 require("dotenv/config");
-const Helpers_1 = __importDefault(require("./utils/Helpers"));
-const app = (0, express_1.default)();
 const os_1 = __importDefault(require("os"));
+const Helpers_1 = __importDefault(require("./utils/Helpers"));
+const RoomManager_1 = __importStar(require("./RoomManager"));
+const app = (0, express_1.default)();
 process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err);
     console.log(`shutting down the server for handling uncaught Exception`);
@@ -51,6 +75,8 @@ const io = new socket_io_1.Server(httpsServer, {
 });
 app.use((0, cors_1.default)());
 const workers = [];
+const numCPUs = os_1.default.cpus().length;
+let nextWorkerIndex = 0;
 const mediaCodecs = [
     {
         kind: 'audio',
@@ -58,10 +84,6 @@ const mediaCodecs = [
         clockRate: 48000,
         channels: 2,
         preferredPayloadType: 96,
-        rtcpFeedback: [
-            { type: "nack" },
-            { type: "nack", parameter: "pli" },
-        ],
     },
     {
         kind: 'video',
@@ -71,11 +93,6 @@ const mediaCodecs = [
             'x-google-start-bitrate': 1000
         },
         preferredPayloadType: 97,
-        rtcpFeedback: [
-            { type: "nack" },
-            { type: "ccm", parameter: "fir" },
-            { type: "goog-remb" },
-        ],
     },
     {
         kind: 'video',
@@ -109,10 +126,6 @@ const mediaCodecs = [
         }
     }
 ];
-const numCPUs = os_1.default.cpus().length;
-let router;
-const rooms = {};
-let nextWorkerIndex = 0;
 function getNextWorker() {
     const worker = workers[nextWorkerIndex];
     nextWorkerIndex = (nextWorkerIndex + 1) % workers.length;
@@ -121,7 +134,7 @@ function getNextWorker() {
 function createWorkerFunc() {
     return __awaiter(this, void 0, void 0, function* () {
         for (let i = 0; i < numCPUs; i++) {
-            let worker = yield (0, mediasoup_1.createWorker)({
+            const worker = yield (0, mediasoup_1.createWorker)({
                 logLevel: 'debug',
                 rtcMinPort: 10000,
                 rtcMaxPort: 10100 + i * 100,
@@ -135,11 +148,6 @@ function createWorkerFunc() {
         }
     });
 }
-createWorkerFunc().then(() => {
-    console.log(`workers created.`);
-});
-console.log("Helpers.getPublicIp()", Helpers_1.default.getPublicIp());
-Helpers_1.default.getLocalIp().then((ip) => console.log("Helpers.getLocalIp() : ", ip));
 function createWebRtcTransport(router) {
     return __awaiter(this, void 0, void 0, function* () {
         return router.createWebRtcTransport({
@@ -163,18 +171,10 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
     });
     socket.on('createRoom', (callback) => __awaiter(void 0, void 0, void 0, function* () {
         const worker = getNextWorker();
-        router = yield worker.createRouter({ mediaCodecs });
+        const router = yield worker.createRouter({ mediaCodecs });
         const roomId = Math.random().toString(36).substring(2, 7);
-        rooms[roomId] = {
-            router: router,
-            peers: {},
-        };
-        rooms[roomId].peers[socket.id] = {
-            socket,
-            transports: [],
-            producers: [],
-            consumers: []
-        };
+        RoomManager_1.default.createRoom(roomId, router);
+        RoomManager_1.default.addPeer(roomId, socket.id, socket);
         socket.join(roomId);
         callback({
             roomId,
@@ -182,39 +182,36 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
         });
     }));
     socket.on('join', (_a, callback_1) => __awaiter(void 0, [_a, callback_1], void 0, function* ({ roomId }, callback) {
-        const room = rooms[roomId];
-        if (!room) {
-            callback({
-                error: 'Room does not exist',
-            });
+        const router = RoomManager_1.default.getRouter(roomId);
+        if (!router) {
+            callback({ error: 'Room does not exist' });
             return;
         }
-        room.peers[socket.id] = {
-            socket,
-            transports: [],
-            producers: [],
-            consumers: [],
-        };
+        RoomManager_1.default.addPeer(roomId, socket.id, socket);
         socket.join(roomId);
-        const rtpCapabilities = room.router.rtpCapabilities;
-        const existingProducers = Object.entries(room.peers).flatMap(([peerId, peer]) => peer.producers.map(producer => ({
-            producerId: producer.id,
-            producerSocketId: peerId,
-            kind: producer.kind
-        })));
+        const rtpCapabilities = router.rtpCapabilities;
+        const producers = RoomManager_1.default.getAllProducers(roomId);
+        const existingProducers = producers.map(producer => {
+            var _a, _b;
+            return ({
+                producerId: producer.id,
+                producerSocketId: (_b = Array.from(((_a = RoomManager_1.default.getPeers(roomId)) === null || _a === void 0 ? void 0 : _a.entries()) || [])
+                    .find(([_, peer]) => peer.producers.has(producer))) === null || _b === void 0 ? void 0 : _b[0],
+                kind: producer.kind
+            });
+        });
         callback({ rtpCapabilities, existingProducers });
         socket.to(roomId).emit('peerJoined', { peerId: socket.id });
     }));
     socket.on('createWebRtcTransport', (_b, callback_2) => __awaiter(void 0, [_b, callback_2], void 0, function* ({ roomId, direction }, callback) {
-        var _c;
-        const router = (_c = rooms[roomId]) === null || _c === void 0 ? void 0 : _c.router;
+        const router = RoomManager_1.default.getRouter(roomId);
         if (!router) {
             callback({ params: { error: 'Room not found' } });
             return;
         }
         try {
             const transport = yield createWebRtcTransport(router);
-            rooms[roomId].peers[socket.id].transports.push({ transport, direction });
+            RoomManager_1.default.addTransport(roomId, socket.id, { transport, direction });
             transport.on('dtlsstatechange', (dtlsState) => {
                 if (dtlsState === 'closed') {
                     transport.close();
@@ -237,31 +234,33 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             callback({ params: { error: 'Failed to create transport' } });
         }
     }));
-    socket.on('connectTransport', (_d, callback_3) => __awaiter(void 0, [_d, callback_3], void 0, function* ({ roomId, transportId, dtlsParameters }, callback) {
-        var _e;
+    socket.on('connectTransport', (_c, callback_3) => __awaiter(void 0, [_c, callback_3], void 0, function* ({ roomId, transportId, dtlsParameters }, callback) {
         try {
-            const transportObject = (_e = rooms[roomId]) === null || _e === void 0 ? void 0 : _e.peers[socket.id].transports.find((t) => t.transport.id === transportId);
-            if (!transportObject) {
+            const transportInfo = RoomManager_1.default.findTransport(roomId, socket.id, transportId);
+            if (!transportInfo) {
                 callback({ error: 'Transport not found' });
                 return;
             }
-            yield transportObject.transport.connect({ dtlsParameters });
+            yield transportInfo.transport.connect({ dtlsParameters });
             callback();
         }
         catch (error) {
             callback({ error: error.message });
         }
     }));
-    socket.on('produce', (_f, callback_4) => __awaiter(void 0, [_f, callback_4], void 0, function* ({ roomId, transportId, kind, rtpParameters, appData }, callback) {
-        var _g, _h;
-        const router = (_g = rooms[roomId]) === null || _g === void 0 ? void 0 : _g.router;
-        const transportObject = (_h = rooms[roomId]) === null || _h === void 0 ? void 0 : _h.peers[socket.id].transports.find((t) => t.transport.id === transportId);
-        if (!router || !transportObject) {
+    socket.on('produce', (_d, callback_4) => __awaiter(void 0, [_d, callback_4], void 0, function* ({ roomId, transportId, kind, rtpParameters, appData }, callback) {
+        const router = RoomManager_1.default.getRouter(roomId);
+        const transportInfo = RoomManager_1.default.findTransport(roomId, socket.id, transportId);
+        if (!router || !transportInfo) {
             callback({ error: 'Room or Transport not found' });
             return;
         }
-        const producer = yield transportObject.transport.produce({ kind, rtpParameters, appData });
-        rooms[roomId].peers[socket.id].producers.push(producer);
+        const producer = yield transportInfo.transport.produce({
+            kind,
+            rtpParameters,
+            appData
+        });
+        RoomManager_1.default.addProducer(roomId, socket.id, producer);
         producer.on('transportclose', () => {
             producer.close();
             socket.to(roomId).emit('producerClosed', {
@@ -277,11 +276,11 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             kind
         });
     }));
-    socket.on('consume', (_j, callback_5) => __awaiter(void 0, [_j, callback_5], void 0, function* ({ roomId, producerId, rtpCapabilities }, callback) {
-        var _k;
+    socket.on('consume', (_e, callback_5) => __awaiter(void 0, [_e, callback_5], void 0, function* ({ roomId, producerId, rtpCapabilities }, callback) {
         try {
-            const router = (_k = rooms[roomId]) === null || _k === void 0 ? void 0 : _k.router;
-            const producer = Object.values(rooms[roomId].peers).flatMap((peer) => peer.producers).find((p) => p.id === producerId);
+            const router = RoomManager_1.default.getRouter(roomId);
+            const producers = RoomManager_1.default.getAllProducers(roomId);
+            const producer = producers.find(p => p.id === producerId);
             if (!router || !producer) {
                 callback({ error: 'Room or Producer not found' });
                 return;
@@ -290,7 +289,9 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
                 callback({ error: "Can't consume" });
                 return;
             }
-            const recvTransport = rooms[roomId].peers[socket.id].transports.find(t => t.direction === 'recv');
+            const peer = RoomManager_1.default.getPeer(roomId, socket.id);
+            const recvTransport = Array.from((peer === null || peer === void 0 ? void 0 : peer.transports) || [])
+                .find(t => t.direction === 'recv');
             if (!recvTransport) {
                 callback({ error: 'Receive transport not found' });
                 return;
@@ -300,7 +301,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
                 rtpCapabilities,
                 paused: true,
             });
-            rooms[roomId].peers[socket.id].consumers.push(consumer);
+            RoomManager_1.default.addConsumer(roomId, socket.id, consumer);
             consumer.on('transportclose', () => {
                 consumer.close();
             });
@@ -319,10 +320,11 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             callback({ error: error.message });
         }
     }));
-    socket.on('resumeConsumer', (_l, callback_6) => __awaiter(void 0, [_l, callback_6], void 0, function* ({ roomId, consumerId }, callback) {
-        var _m;
+    socket.on('resumeConsumer', (_f, callback_6) => __awaiter(void 0, [_f, callback_6], void 0, function* ({ roomId, consumerId }, callback) {
         try {
-            const consumer = (_m = rooms[roomId]) === null || _m === void 0 ? void 0 : _m.peers[socket.id].consumers.find((c) => c.id === consumerId);
+            const peer = RoomManager_1.default.getPeer(roomId, socket.id);
+            const consumer = Array.from((peer === null || peer === void 0 ? void 0 : peer.consumers) || [])
+                .find(c => c.id === consumerId);
             if (!consumer) {
                 callback({ params: { error: 'Consumer not found' } });
                 return;
@@ -332,37 +334,29 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
         }
         catch (error) {
             callback({ params: { error: error.message } });
-            return;
         }
     }));
-    const handlePeerLeave = (roomId, socketId) => {
-        if (rooms[roomId] && rooms[roomId].peers[socketId]) {
-            rooms[roomId].peers[socketId].transports.forEach((transport) => transport.transport.close());
-            rooms[roomId].peers[socketId].producers.forEach((producer) => producer.close());
-            rooms[roomId].peers[socketId].consumers.forEach((consumer) => consumer.close());
-            delete rooms[roomId].peers[socketId];
-            socket.to(roomId).emit('peerLeft', { peerId: socketId });
-            if (Object.keys(rooms[roomId].peers).length === 0) {
-                delete rooms[roomId];
-            }
-        }
-    };
     socket.on('leaveRoom', ({ roomId }) => {
-        handlePeerLeave(roomId, socket.id);
+        RoomManager_1.default.removePeer(roomId, socket.id);
+        socket.to(roomId).emit('peerLeft', { peerId: socket.id });
     });
     socket.on('disconnect', () => {
-        for (const roomId in rooms) {
-            if (rooms[roomId].peers[socket.id]) {
-                socket.emit('leaveRoom', { roomId });
+        RoomManager_1.rooms.forEach((_, roomId) => {
+            if (RoomManager_1.default.getPeer(roomId, socket.id)) {
+                RoomManager_1.default.removePeer(roomId, socket.id);
+                socket.to(roomId).emit('peerLeft', { peerId: socket.id });
             }
-        }
+        });
     });
 }));
+createWorkerFunc().then(() => {
+    console.log('Workers created');
+    const port = process.env.PORT || 3000;
+    httpsServer === null || httpsServer === void 0 ? void 0 : httpsServer.listen(port, () => {
+        console.log(`Server is running on https://localhost:${port}`);
+    });
+});
 app.get('/', (req, res) => {
     res.json({ message: "server started successfully" });
-});
-const port = process.env.PORT || 3000;
-httpsServer === null || httpsServer === void 0 ? void 0 : httpsServer.listen(port, () => {
-    console.log(`Server is running on https://localhost:${port}`);
 });
 //# sourceMappingURL=index.js.map

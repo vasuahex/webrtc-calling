@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, CSSProperties } from 'react';
 import { Device } from 'mediasoup-client';
-import MediaSoupTypes, { RtpCapabilities, Transport, Producer } from 'mediasoup-client/lib/types';
+import MediaSoupTypes, { RtpCapabilities, Transport, Producer, IceParameters, DtlsParameters, IceCandidate } from 'mediasoup-client/lib/types';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'react-toastify';
 import { RingLoader } from 'react-spinners';
@@ -37,12 +37,12 @@ const videoParams = {
   }
 };
 
-const audioParams = {
-  codecOptions: {
-    opusStereo: true,
-    opusDtx: true
-  }
-};
+// const audioParams = {
+//   codecOptions: {
+//     opusStereo: true,
+//     opusDtx: true
+//   }
+// };
 
 // Interfaces for type safety
 interface ExistingProducer {
@@ -63,7 +63,13 @@ interface Consumer {
   combinedStream?: MediaStream;
   consumer?: MediaSoupTypes.Consumer;
 }
-
+interface WebRtcTransportParams {
+  id: string;
+  iceParameters: IceParameters;
+  dtlsParameters: DtlsParameters;
+  iceCandidates: IceCandidate[];
+  error?: string
+}
 const VideoCall: React.FC = () => {
   // State management
   const [isInRoom, setIsInRoom] = useState(false);
@@ -178,22 +184,18 @@ const VideoCall: React.FC = () => {
 
       const { rtpCapabilities, existingProducers } = response;
       try {
-        if (rtpCapabilities && existingProducers) {
+        if (rtpCapabilities && existingProducers && existingProducers?.length > 0) {
           if (!deviceRef.current) {
             deviceRef.current = new Device();
           }
-          // const device = new Device();
           await deviceRef.current.load({ routerRtpCapabilities: rtpCapabilities });
           // deviceRef.current = device;
           setRoomId(joinRoomId);
 
           await createSendTransport(deviceRef.current, joinRoomId);
-
-          // Create receive transports for existing producers
-          for (const producer of existingProducers) {
-            await createRecvTransport(producer.producerId, deviceRef.current, joinRoomId, producer.producerSocketId);
-          }
-
+          existingProducers.forEach(producer => {
+            createRecvTransport(producer.producerId, deviceRef.current as Device, joinRoomId, producer.producerSocketId);
+          });
         } else {
           toast.error(`Existing producers or RTP capabilities are missing.`);
         }
@@ -207,18 +209,19 @@ const VideoCall: React.FC = () => {
   // Create send transport for media
   const createSendTransport = async (device: Device, roomId: string) => {
     if (!socketRef.current) return;
-    socketRef.current.emit('createWebRtcTransport', { roomId, direction: 'send' }, async ({ params }: any) => {
+    socketRef.current.emit('createWebRtcTransport', { roomId, direction: 'send' }, async ({ params }: { params: WebRtcTransportParams }) => {
       if (params.error) {
         toast.error(`${params.error}`, { position: "top-left" });
         return;
       }
 
       const transport = device.createSendTransport({ ...params, iceServers });
-
+      transport.on('connectionstatechange', (state) => {
+        console.log(`Sender transport ${transport.id} connection state changed to ${state}`);
+      })
       transport.on('connect', async ({ dtlsParameters }, callback) => {
         socketRef.current!.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters }, callback);
       });
-
       transport.on('produce', async (parameters, callback, errback) => {
         try {
           socketRef.current!.emit('produce', {
@@ -234,8 +237,8 @@ const VideoCall: React.FC = () => {
           errback(error);
         }
       });
-
       await createProducers(transport);
+
     });
   };
 
@@ -252,30 +255,31 @@ const VideoCall: React.FC = () => {
       setLocalStream(localStream);
 
       const videoTrack = localStream.getVideoTracks()[0];
-      const audioTrack = localStream.getAudioTracks()[0];
+      // const audioTrack = localStream.getAudioTracks()[0];
 
       // Produce video
       if (videoTrack) {
         const videoProducer = await transport.produce({
           track: videoTrack,
           codecOptions: videoParams.codecOptions,
-          encodings: videoParams.encodings
+          encodings: videoParams.encodings,
+          appData: { mediaTag: 'video' },
         });
-
         setupProducerEvents(videoProducer, 'video');
         producersRef.current.video = videoProducer;
       }
 
       // Produce audio
-      if (audioTrack) {
-        const audioProducer = await transport.produce({
-          track: audioTrack,
-          codecOptions: audioParams.codecOptions
-        });
+      // if (audioTrack) {
+      //   const audioProducer = await transport.produce({
+      //     track: audioTrack,
+      //     codecOptions: audioParams.codecOptions,
+      //     appData: { mediaTag: 'audio' },
+      //   });
 
-        setupProducerEvents(audioProducer, 'audio');
-        producersRef.current.audio = audioProducer;
-      }
+      //   setupProducerEvents(audioProducer, 'audio');
+      //   producersRef.current.audio = audioProducer;
+      // }
 
       setIsLoading(false);
       setIsInRoom(true);
@@ -301,17 +305,20 @@ const VideoCall: React.FC = () => {
   // Create receive transport for incoming media
   const createRecvTransport = async (producerId: string, currentDevice: MediaSoupTypes.Device, roomId: string, peerId: string) => {
     if (!socketRef.current || !currentDevice) return;
-    socketRef.current.emit('createWebRtcTransport', { roomId, direction: 'recv' }, async ({ params }: any) => {
+    socketRef.current.emit('createWebRtcTransport', { roomId, direction: 'recv' }, async ({ params }: { params: WebRtcTransportParams }) => {
       if (params.error) {
         toast.error(params.error, { position: "top-left" });
         return;
       }
 
       const transport = currentDevice.createRecvTransport({ ...params, iceServers });
-
+      transport.on('connectionstatechange', (state) => {
+        console.log(`Recv transport ${transport.id} connection state changed to ${state}`);
+      })
       transport.on('connect', ({ dtlsParameters }, callback) => {
         socketRef.current!.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters }, callback);
       });
+
 
       await connectRecvTransport(transport, producerId, currentDevice, roomId, peerId);
     });
@@ -321,11 +328,7 @@ const VideoCall: React.FC = () => {
   const connectRecvTransport = async (transport: Transport, producerId: string, device: MediaSoupTypes.Device, roomId: string, peerId: string) => {
     if (!socketRef.current || !roomId) return;
 
-    socketRef.current.emit('consume', {
-      roomId,
-      producerId,
-      rtpCapabilities: device!.rtpCapabilities
-    },
+    socketRef.current.emit('consume', { roomId, producerId, rtpCapabilities: device!.rtpCapabilities },
       async ({ id, producerId, kind, rtpParameters, error }: any) => {
         if (error) {
           console.error('Consume error:', error);
@@ -341,6 +344,15 @@ const VideoCall: React.FC = () => {
           });
 
           const stream = new MediaStream([consumer.track]);
+
+          // Resume consumer
+          socketRef.current!.emit('resumeConsumer', { roomId, consumerId: id }, ({ params }: any) => {
+            if (params.error) {
+              console.error('Error resuming consumer:', params.error);
+            }
+
+          }
+          );
 
           setConsumers(prevConsumers => {
             if (prevConsumers[consumer.id]) {
@@ -358,24 +370,8 @@ const VideoCall: React.FC = () => {
               }
             };
           });
-
-          // Resume consumer
-          await new Promise((resolve, reject) => {
-            socketRef.current!.emit('resumeConsumer',
-              { roomId, consumerId: id },
-              ({ params }: any) => {
-                if (params.error) {
-                  reject(params.error);
-                  return;
-                }
-                resolve(true);
-              }
-            );
-          });
-
           // Setup cleanup
           consumer.on('transportclose', () => {
-            console.log('Consumer transport closed', consumer.id);
             removeConsumer(peerId);
           });
 

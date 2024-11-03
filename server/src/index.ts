@@ -126,8 +126,8 @@ async function createWorkerFunc() {
     for (let i = 0; i < numCPUs; i++) {
         const worker = await createWorker({
             logLevel: 'debug',
-            rtcMinPort: 40000,
-            rtcMaxPort: 40100 + i * 100,
+            rtcMinPort: 10000,
+            rtcMaxPort: 20100 + i * 100,
             logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
         });
 
@@ -139,6 +139,7 @@ async function createWorkerFunc() {
         workers.push(worker);
     }
 }
+console.log(Helpers.getPublicIp());
 
 async function createWebRtcTransport(router: Router) {
     return router.createWebRtcTransport({
@@ -153,6 +154,7 @@ async function createWebRtcTransport(router: Router) {
         enableTcp: true,
         preferUdp: true,
         enableSctp: true,
+        iceConsentTimeout: 8000,
     });
 }
 

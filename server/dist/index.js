@@ -136,8 +136,8 @@ function createWorkerFunc() {
         for (let i = 0; i < numCPUs; i++) {
             const worker = yield (0, mediasoup_1.createWorker)({
                 logLevel: 'debug',
-                rtcMinPort: 40000,
-                rtcMaxPort: 40100 + i * 100,
+                rtcMinPort: 10000,
+                rtcMaxPort: 20100 + i * 100,
                 logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
             });
             worker.on('died', () => {
@@ -148,6 +148,7 @@ function createWorkerFunc() {
         }
     });
 }
+console.log(Helpers_1.default.getPublicIp());
 function createWebRtcTransport(router) {
     return __awaiter(this, void 0, void 0, function* () {
         return router.createWebRtcTransport({
@@ -162,6 +163,7 @@ function createWebRtcTransport(router) {
             enableTcp: true,
             preferUdp: true,
             enableSctp: true,
+            iceConsentTimeout: 8000,
         });
     });
 }

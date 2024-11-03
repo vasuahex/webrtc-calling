@@ -44,4 +44,3 @@ exports.default = {
     getLocalIp,
     getPublicIp
 };
-//# sourceMappingURL=Helpers.js.map

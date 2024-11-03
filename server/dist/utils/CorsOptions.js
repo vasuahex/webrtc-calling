@@ -13,4 +13,3 @@ exports.options = {
     exposedHeaders: ["sessionid", "token", "resettoken"],
     allowedHeaders: ["sessionid", "Content-Type", "Authorization", "token"],
 };
-//# sourceMappingURL=CorsOptions.js.map

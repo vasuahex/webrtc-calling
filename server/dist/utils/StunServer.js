@@ -192,4 +192,3 @@ exports.StunServers = {
     ],
     iceCandidatePoolSize: 10
 };
-//# sourceMappingURL=StunServer.js.map

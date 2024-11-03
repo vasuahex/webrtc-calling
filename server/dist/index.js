@@ -136,8 +136,8 @@ function createWorkerFunc() {
         for (let i = 0; i < numCPUs; i++) {
             const worker = yield (0, mediasoup_1.createWorker)({
                 logLevel: 'debug',
-                rtcMinPort: 10000,
-                rtcMaxPort: 10100 + i * 100,
+                rtcMinPort: 40000,
+                rtcMaxPort: 40100 + i * 100,
                 logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
             });
             worker.on('died', () => {
@@ -193,12 +193,13 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
         const producers = RoomManager_1.default.getAllProducers(roomId);
         const existingProducers = producers.map(producer => {
             var _a, _b;
-            return ({
+            const producerSocketId = (_b = Array.from(((_a = RoomManager_1.default.getPeers(roomId)) === null || _a === void 0 ? void 0 : _a.entries()) || [])
+                .find(([_, peer]) => peer.producers.has(producer))) === null || _b === void 0 ? void 0 : _b[0];
+            return {
                 producerId: producer.id,
-                producerSocketId: (_b = Array.from(((_a = RoomManager_1.default.getPeers(roomId)) === null || _a === void 0 ? void 0 : _a.entries()) || [])
-                    .find(([_, peer]) => peer.producers.has(producer))) === null || _b === void 0 ? void 0 : _b[0],
+                producerSocketId: producerSocketId,
                 kind: producer.kind
-            });
+            };
         });
         callback({ rtpCapabilities, existingProducers });
         socket.to(roomId).emit('peerJoined', { peerId: socket.id });
@@ -359,4 +360,3 @@ createWorkerFunc().then(() => {
 app.get('/', (req, res) => {
     res.json({ message: "server started successfully" });
 });
-//# sourceMappingURL=index.js.map

@@ -126,8 +126,8 @@ async function createWorkerFunc() {
     for (let i = 0; i < numCPUs; i++) {
         const worker = await createWorker({
             logLevel: 'debug',
-            rtcMinPort: 10000,
-            rtcMaxPort: 10100 + i * 100,
+            rtcMinPort: 40000,
+            rtcMaxPort: 40100 + i * 100,
             logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
         });
 
@@ -191,12 +191,15 @@ io.on('connection', async (socket) => {
         const rtpCapabilities = router.rtpCapabilities;
         const producers = RoomManager.getAllProducers(roomId);
 
-        const existingProducers = producers.map(producer => ({
-            producerId: producer.id,
-            producerSocketId: Array.from(RoomManager.getPeers(roomId)?.entries() || [])
-                .find(([_, peer]) => peer.producers.has(producer))?.[0],
-            kind: producer.kind
-        }));
+        const existingProducers = producers.map(producer => {
+            const producerSocketId = Array.from(RoomManager.getPeers(roomId)?.entries() || [])
+                .find(([_, peer]) => peer.producers.has(producer))?.[0];
+            return {
+                producerId: producer.id,
+                producerSocketId: producerSocketId,
+                kind: producer.kind
+            };
+        });
 
         callback({ rtpCapabilities, existingProducers });
         socket.to(roomId).emit('peerJoined', { peerId: socket.id });

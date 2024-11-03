@@ -154,7 +154,7 @@ function createWebRtcTransport(router) {
         return router.createWebRtcTransport({
             listenIps: [
                 {
-                    ip: '0.0.0.0',
+                    ip: Helpers_1.default.getPublicIp(),
                     announcedIp: Helpers_1.default.getPublicIp(),
                 },
             ],
@@ -206,7 +206,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
         callback({ rtpCapabilities, existingProducers });
         socket.to(roomId).emit('peerJoined', { peerId: socket.id });
     }));
-    socket.on('createWebRtcTransport', (_b, callback_2) => __awaiter(void 0, [_b, callback_2], void 0, function* ({ roomId, direction }, callback) {
+    socket.on('createWebRtcTransport', (_a, callback_1) => __awaiter(void 0, [_a, callback_1], void 0, function* ({ roomId, direction }, callback) {
         const router = RoomManager_1.default.getRouter(roomId);
         if (!router) {
             callback({ params: { error: 'Room not found' } });
@@ -237,7 +237,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             callback({ params: { error: 'Failed to create transport' } });
         }
     }));
-    socket.on('connectTransport', (_c, callback_3) => __awaiter(void 0, [_c, callback_3], void 0, function* ({ roomId, transportId, dtlsParameters }, callback) {
+    socket.on('connectTransport', (_a, callback_1) => __awaiter(void 0, [_a, callback_1], void 0, function* ({ roomId, transportId, dtlsParameters }, callback) {
         try {
             const transportInfo = RoomManager_1.default.findTransport(roomId, socket.id, transportId);
             if (!transportInfo) {
@@ -251,7 +251,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             callback({ error: error.message });
         }
     }));
-    socket.on('produce', (_d, callback_4) => __awaiter(void 0, [_d, callback_4], void 0, function* ({ roomId, transportId, kind, rtpParameters, appData }, callback) {
+    socket.on('produce', (_a, callback_1) => __awaiter(void 0, [_a, callback_1], void 0, function* ({ roomId, transportId, kind, rtpParameters, appData }, callback) {
         const router = RoomManager_1.default.getRouter(roomId);
         const transportInfo = RoomManager_1.default.findTransport(roomId, socket.id, transportId);
         if (!router || !transportInfo) {
@@ -279,7 +279,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             kind
         });
     }));
-    socket.on('consume', (_e, callback_5) => __awaiter(void 0, [_e, callback_5], void 0, function* ({ roomId, producerId, rtpCapabilities }, callback) {
+    socket.on('consume', (_a, callback_1) => __awaiter(void 0, [_a, callback_1], void 0, function* ({ roomId, producerId, rtpCapabilities }, callback) {
         try {
             const router = RoomManager_1.default.getRouter(roomId);
             const producers = RoomManager_1.default.getAllProducers(roomId);
@@ -323,7 +323,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
             callback({ error: error.message });
         }
     }));
-    socket.on('resumeConsumer', (_f, callback_6) => __awaiter(void 0, [_f, callback_6], void 0, function* ({ roomId, consumerId }, callback) {
+    socket.on('resumeConsumer', (_a, callback_1) => __awaiter(void 0, [_a, callback_1], void 0, function* ({ roomId, consumerId }, callback) {
         try {
             const peer = RoomManager_1.default.getPeer(roomId, socket.id);
             const consumer = Array.from((peer === null || peer === void 0 ? void 0 : peer.consumers) || [])
@@ -354,7 +354,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
 }));
 createWorkerFunc().then(() => {
     console.log('Workers created');
-    const port = process.env.PORT || 3000;
+    const port = process.env.PORT || 9090;
     httpsServer === null || httpsServer === void 0 ? void 0 : httpsServer.listen(port, () => {
         console.log(`Server is running on https://localhost:${port}`);
     });

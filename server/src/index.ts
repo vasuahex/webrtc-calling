@@ -145,7 +145,7 @@ async function createWebRtcTransport(router: Router) {
     return router.createWebRtcTransport({
         listenIps: [
             {
-                ip: '0.0.0.0',
+                ip: Helpers.getPublicIp(),
                 announcedIp: Helpers.getPublicIp(),
             },
         ],
@@ -382,7 +382,7 @@ io.on('connection', async (socket) => {
 // Initialize workers and start server
 createWorkerFunc().then(() => {
     console.log('Workers created');
-    const port = process.env.PORT || 3000;
+    const port = process.env.PORT || 9090;
 
     httpsServer?.listen(port, () => {
         console.log(`Server is running on https://localhost:${port}`);

@@ -47,6 +47,7 @@ require("dotenv/config");
 const os_1 = __importDefault(require("os"));
 const Helpers_1 = __importDefault(require("./utils/Helpers"));
 const RoomManager_1 = __importStar(require("./RoomManager"));
+const fileupload_1 = __importDefault(require("./routes/fileupload"));
 const app = (0, express_1.default)();
 process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err);
@@ -74,6 +75,7 @@ const io = new socket_io_1.Server(httpsServer, {
     },
 });
 app.use((0, cors_1.default)());
+app.use(express_1.default.json());
 const workers = [];
 const numCPUs = os_1.default.cpus().length;
 let nextWorkerIndex = 0;
@@ -84,6 +86,10 @@ const mediaCodecs = [
         clockRate: 48000,
         channels: 2,
         preferredPayloadType: 96,
+        rtcpFeedback: [
+            { type: "nack" },
+            { type: "nack", parameter: "pli" },
+        ],
     },
     {
         kind: 'video',
@@ -93,6 +99,11 @@ const mediaCodecs = [
             'x-google-start-bitrate': 1000
         },
         preferredPayloadType: 97,
+        rtcpFeedback: [
+            { type: "nack" },
+            { type: "ccm", parameter: "fir" },
+            { type: "goog-remb" },
+        ],
     },
     {
         kind: 'video',
@@ -154,7 +165,7 @@ function createWebRtcTransport(router) {
         return router.createWebRtcTransport({
             listenIps: [
                 {
-                    ip: Helpers_1.default.getPublicIp(),
+                    ip: '0.0.0.0',
                     announcedIp: Helpers_1.default.getPublicIp(),
                 },
             ],
@@ -163,7 +174,6 @@ function createWebRtcTransport(router) {
             enableTcp: true,
             preferUdp: true,
             enableSctp: true,
-            iceConsentTimeout: 8000,
         });
     });
 }
@@ -214,11 +224,16 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
         }
         try {
             const transport = yield createWebRtcTransport(router);
+            transport.setMaxIncomingBitrate(1500000);
+            transport.setMaxOutgoingBitrate(1500000);
             RoomManager_1.default.addTransport(roomId, socket.id, { transport, direction });
             transport.on('dtlsstatechange', (dtlsState) => {
                 if (dtlsState === 'closed') {
                     transport.close();
                 }
+            });
+            transport.on('icestatechange', (iceState) => {
+                console.log('ICE State:', iceState);
             });
             transport.on('@close', () => {
                 console.log('Transport closed');
@@ -289,7 +304,7 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
                 return;
             }
             if (!router.canConsume({ producerId, rtpCapabilities })) {
-                callback({ error: "Can't consume" });
+                callback({ error: "Can't consume - incompatible parameters" });
                 return;
             }
             const peer = RoomManager_1.default.getPeer(roomId, socket.id);
@@ -312,11 +327,16 @@ io.on('connection', (socket) => __awaiter(void 0, void 0, void 0, function* () {
                 consumer.close();
                 socket.emit('consumerClosed', { consumerId: consumer.id });
             });
+            consumer.on('producerresume', () => {
+                console.log('producerresumed');
+            });
+            console.log(consumer.producerPaused);
             callback({
                 id: consumer.id,
                 producerId: producer.id,
                 kind: consumer.kind,
                 rtpParameters: consumer.rtpParameters,
+                producerPaused: consumer.producerPaused
             });
         }
         catch (error) {
@@ -362,3 +382,4 @@ createWorkerFunc().then(() => {
 app.get('/', (req, res) => {
     res.json({ message: "server started successfully" });
 });
+app.use("/api", fileupload_1.default);

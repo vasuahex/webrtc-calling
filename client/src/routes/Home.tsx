@@ -13,6 +13,7 @@ const Home = () => {
         <Link to="/waveform" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-yellow-100'>waveform</Link>
         <Link to="/richtexteditor" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-slate-300'>richtext editor</Link>
         <Link to="/fonts" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-purple-300'>fonts</Link>
+        <Link to="/fileupload" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-indigo-500'>File upload</Link>
       </div>
 
     </div>

@@ -16,6 +16,7 @@ import RichTextEditor from './reuse/RichTextEditor'
 import "./css/App.css"
 import 'react-toastify/dist/ReactToastify.css';
 import Fonts from './routes/Fonts'
+import FileUpload from './routes/FileUpload'
 
 const App = () => {
   return (
@@ -36,6 +37,7 @@ const App = () => {
         <Route path="/test-peers" element={<PeerTest />} />
         <Route path="/themes" element={<Themes />} />
         <Route path="/tooltip" element={<ToolTip />} />
+        <Route path="/fileupload" element={<FileUpload />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </div>

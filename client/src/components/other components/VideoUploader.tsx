@@ -133,7 +133,6 @@ const AdvancedUploader: React.FC<AdvancedUploaderProps> = ({
             if (onUpload) {
                 await onUpload(file);
             }
-            setUploadStatus(prev => ({ ...prev, [file.name]: 'completed' }));
         } catch (err) {
             setErrors(prev => ({ ...prev, [file.name]: 'Upload failed. Please try again.' }));
             setUploadStatus(prev => ({ ...prev, [file.name]: 'error' }));
@@ -220,12 +219,14 @@ const AdvancedUploader: React.FC<AdvancedUploaderProps> = ({
             {selectedFiles.length > 0 && (
                 <div className="mt-6 space-y-4">
                     {selectedFiles.map((file) => (
-                        <div key={file.name} className="bg-gray-50 rounded-lg p-4 relative">
+                        <div key={file.name} className="bg-gray-100 hover:bg-cyan-50 transition-all rounded-lg p-4 relative">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center space-x-3">
-                                    {getFileIcon(getFileType(file))}
+                                    <span>
+                                        {getFileIcon(getFileType(file))}
+                                    </span>
                                     <div>
-                                        <p className="text-sm font-medium text-gray-700">{file.name}</p>
+                                        <p className="text-sm line-clamp-1 font-medium text-gray-700">{file.name}</p>
                                         <p className="text-xs text-gray-500">
                                             {(file.size / (1024 * 1024)).toFixed(2)} MB
                                         </p>
@@ -254,9 +255,9 @@ const AdvancedUploader: React.FC<AdvancedUploaderProps> = ({
                                                     : 'text-blue-600'
                                             }`}
                                     >
-                                        {uploadStatus[file.name] === 'processing'
-                                            ? 'Processing...'
-                                            : uploadStatus[file.name] === 'completed' ? 'completed' : `${uploadProgress[file.name]}%`}
+                                        {uploadStatus[file.name] === 'processing' ? 'Processing...'
+                                            : uploadStatus[file.name] === 'error' ? 'Failed'
+                                                : uploadStatus[file.name] === 'completed' ? 'Completed' : `${uploadProgress[file.name]}%`}
                                     </span>
                                 </div>
                                 <div className="h-2 relative rounded-full overflow-hidden bg-gray-200">
@@ -279,6 +280,14 @@ const AdvancedUploader: React.FC<AdvancedUploaderProps> = ({
                                     className="mt-2 px-3 py-1 text-xs font-medium text-white bg-blue-500 rounded hover:bg-blue-600"
                                 >
                                     Upload
+                                </button>
+                            )}
+                            {uploadStatus[file.name] === 'error' && (
+                                <button
+                                    onClick={() => handleUpload(file)}
+                                    className="mt-2 px-3 py-1 text-xs font-medium text-white bg-red-500 rounded hover:bg-red-600"
+                                >
+                                    Retry
                                 </button>
                             )}
                             {uploadStatus[file.name] === 'completed' && (

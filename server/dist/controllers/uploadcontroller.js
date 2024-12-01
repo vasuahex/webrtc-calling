@@ -43,7 +43,6 @@ class UploadController {
                 res.json({ ETag, PartNumber, progress });
             }
             catch (error) {
-                console.error('Error uploading chunk:', error);
                 res.status(500).json({ error: 'Failed to upload chunk', uploadId });
             }
         });
@@ -60,7 +59,6 @@ class UploadController {
                 res.json({ location });
             }
             catch (error) {
-                console.error('Error completing upload:', error);
                 res.status(500).json({ error: 'Failed to complete upload' });
             }
         });
@@ -77,7 +75,6 @@ class UploadController {
                 res.json({ message: 'Upload aborted successfully' });
             }
             catch (error) {
-                console.error('Error aborting upload:', error);
                 res.status(500).json({ error: 'Failed to abort upload' });
             }
         });

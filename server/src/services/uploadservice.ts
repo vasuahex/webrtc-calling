@@ -86,11 +86,8 @@ class UploadService {
         };
     }
 
-    async completeMultipartUpload(
-        uploadId: string,
-        key: string,
-        parts: { ETag: string; PartNumber: number }[]
-    ): Promise<string> {
+    async completeMultipartUpload(uploadId: string, key: string, parts: { ETag: string; PartNumber: number }[])
+        : Promise<string> {
         const command = new CompleteMultipartUploadCommand({
             Bucket: S3_BUCKET_NAME,
             Key: key,

@@ -35,7 +35,7 @@ export interface ChunkMetadata {
 }
 
 
-export const apiClient = axios.create({
+const apiClient = axios.create({
     baseURL: API_BASE_URL,
     headers: { 'Content-Type': 'application/json' },
 });
@@ -156,7 +156,7 @@ const FileUpload = () => {
     }
 
     return (
-        <div className='bg-black/80'>
+        <div className='bg-black/80 min-h-screen'>
             <VideoUploader uploadProgress={uploadProgress} setUploadProgress={setUploadProgress}
                 setUploadStatus={setUploadStatus} uploadStatus={uploadStatus} onAbort={abortUpload}
                 onUpload={handleUpload} maxFiles={10} allowedTypes={allowedTypes} handleOpenFile={handleOpenFile} />
@@ -164,5 +164,5 @@ const FileUpload = () => {
     )
 }
 
-export default FileUpload
+export default React.memo(FileUpload)
 

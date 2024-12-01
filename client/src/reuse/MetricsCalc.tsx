@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Gauge } from 'lucide-react';
-import MediaSoupTypes, { Consumer } from 'mediasoup-client/lib/types';
+import  { Consumer } from 'mediasoup-client/lib/types';
 
 interface LayerDetails {
     maxBitrate: number;

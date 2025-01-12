@@ -16,6 +16,7 @@ import {
     RtpCodecCapability,
 } from 'mediasoup/node/lib/types';
 import uploadRouter from "./routes/fileupload"
+import { options } from "./utils/CorsOptions"
 const app = express();
 
 // Handle uncaught Exception
@@ -47,7 +48,7 @@ const io = new Server(httpsServer, {
     },
 });
 
-app.use(cors());
+app.use(cors(options));
 app.use(express.json());
 
 // MediaSoup setup

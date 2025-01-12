@@ -103,5 +103,63 @@ class UploadService {
             }
         });
     }
+    getStreamVideo(key, range) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const headCommand = new client_s3_1.GetObjectCommand({
+                Bucket: exports.S3_BUCKET_NAME,
+                Key: `videos/${key}`,
+                Range: 'bytes=0-0'
+            });
+            const metadata = yield exports.s3Client.send(headCommand);
+            const contentLength = Number(metadata.ContentLength);
+            const CHUNK_SIZE = 1 * 1024 * 1024;
+            const start = Number(range.replace(/\D/g, ''));
+            const end = Math.min(start + CHUNK_SIZE, contentLength - 1);
+            const command = new client_s3_1.GetObjectCommand({
+                Bucket: exports.S3_BUCKET_NAME,
+                Key: `videos/${key}`,
+                Range: `bytes=${start}-${end}`
+            });
+            const { Body } = yield exports.s3Client.send(command);
+            if (!Body) {
+                throw new Error('No body returned from S3');
+            }
+            const headers = {
+                'Content-Range': `bytes ${start}-${end}/${contentLength}`,
+                'Accept-Ranges': 'bytes',
+                'Content-Length': end - start + 1,
+                'Content-Type': metadata.ContentType,
+            };
+        });
+    }
+    readableToReadableStream(nodeReadable) {
+        return new ReadableStream({
+            start(controller) {
+                nodeReadable.on("data", (chunk) => controller.enqueue(chunk));
+                nodeReadable.on("end", () => controller.close());
+                nodeReadable.on("error", (err) => controller.error(err));
+            },
+        });
+    }
+    getObjectChunk(key, range) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const fileKey = `videos/${key}`;
+            const command = new client_s3_1.GetObjectCommand({
+                Bucket: exports.S3_BUCKET_NAME,
+                Key: fileKey,
+                Range: range
+            });
+            const response = yield exports.s3Client.send(command);
+            const nodeReadable = response.Body;
+            const browserReadableStream = nodeReadable
+                ? this.readableToReadableStream(nodeReadable)
+                : undefined;
+            return {
+                Body: browserReadableStream,
+                ContentType: response.ContentType,
+                ContentRange: response.ContentRange,
+            };
+        });
+    }
 }
 exports.uploadService = new UploadService();

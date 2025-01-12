@@ -3,8 +3,11 @@ import {
     CreateMultipartUploadCommand,
     UploadPartCommand,
     CompleteMultipartUploadCommand,
-    AbortMultipartUploadCommand
+    AbortMultipartUploadCommand,
+    GetObjectCommand,
+    GetObjectCommandOutput
 } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
 
 export const s3Client = new S3Client({
     region: process.env.AWS_REGION || "auto",
@@ -119,6 +122,73 @@ class UploadService {
             this.uploadProgress.set(uploadId, progress);
         }
     }
+
+    async getStreamVideo(key: string, range: string) {
+        const headCommand = new GetObjectCommand({
+            Bucket: S3_BUCKET_NAME,
+            Key: `videos/${key}`,
+            Range: 'bytes=0-0'
+        });
+
+        const metadata = await s3Client.send(headCommand);
+        const contentLength = Number(metadata.ContentLength);
+        const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB chunks
+        const start = Number(range.replace(/\D/g, ''));
+        const end = Math.min(start + CHUNK_SIZE, contentLength - 1);
+
+        // Create command for range request
+        const command = new GetObjectCommand({
+            Bucket: S3_BUCKET_NAME,
+            Key: `videos/${key}`,
+            Range: `bytes=${start}-${end}`
+        });
+
+        // Stream the chunk
+        const { Body } = await s3Client.send(command);
+        if (!Body) {
+            throw new Error('No body returned from S3');
+        }
+
+        const headers = {
+            'Content-Range': `bytes ${start}-${end}/${contentLength}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': end - start + 1,
+            'Content-Type': metadata.ContentType,
+        };
+
+    }
+    readableToReadableStream(nodeReadable: Readable): ReadableStream {
+        return new ReadableStream({
+            start(controller) {
+                nodeReadable.on("data", (chunk) => controller.enqueue(chunk));
+                nodeReadable.on("end", () => controller.close());
+                nodeReadable.on("error", (err) => controller.error(err));
+            },
+        });
+    }
+
+
+    async getObjectChunk(key: string, range: string): Promise<{ Body?: ReadableStream | undefined; ContentType?: string | undefined, ContentRange: string | undefined }> {
+        const fileKey = `videos/${key}`;
+        const command = new GetObjectCommand({
+            Bucket: S3_BUCKET_NAME,
+            Key: fileKey,
+            Range: range
+        });
+        const response: GetObjectCommandOutput = await s3Client.send(command);
+
+        const nodeReadable = response.Body as Readable;
+        const browserReadableStream = nodeReadable
+            ? this.readableToReadableStream(nodeReadable)
+            : undefined;
+
+        return {
+            Body: browserReadableStream,
+            ContentType: response.ContentType,
+            ContentRange: response.ContentRange,
+        };
+    }
+
 }
 
 export const uploadService = new UploadService();

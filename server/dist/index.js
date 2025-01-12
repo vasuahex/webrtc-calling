@@ -48,6 +48,7 @@ const os_1 = __importDefault(require("os"));
 const Helpers_1 = __importDefault(require("./utils/Helpers"));
 const RoomManager_1 = __importStar(require("./RoomManager"));
 const fileupload_1 = __importDefault(require("./routes/fileupload"));
+const CorsOptions_1 = require("./utils/CorsOptions");
 const app = (0, express_1.default)();
 process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err);
@@ -74,7 +75,7 @@ const io = new socket_io_1.Server(httpsServer, {
         methods: ['GET', 'POST'],
     },
 });
-app.use((0, cors_1.default)());
+app.use((0, cors_1.default)(CorsOptions_1.options));
 app.use(express_1.default.json());
 const workers = [];
 const numCPUs = os_1.default.cpus().length;

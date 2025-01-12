@@ -20,3 +20,15 @@ export interface DesignElement {
     content: string;
     style: ElementStyle;
 }
+
+
+// types.ts
+export interface Video {
+    id: string;
+    title: string;
+    thumbnail: string;
+    channel: string;
+    views: string;
+    duration: string;
+  }
+  

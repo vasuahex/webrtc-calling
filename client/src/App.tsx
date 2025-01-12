@@ -17,6 +17,7 @@ import "./css/App.css"
 import 'react-toastify/dist/ReactToastify.css';
 import Fonts from './routes/Fonts'
 import FileUpload from './routes/FileUpload'
+import Videos from './routes/Videos'
 
 const App = () => {
   return (
@@ -38,6 +39,7 @@ const App = () => {
         <Route path="/themes" element={<Themes />} />
         <Route path="/tooltip" element={<ToolTip />} />
         <Route path="/fileupload" element={<FileUpload />} />
+        <Route path="/videos" element={<Videos />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </div>

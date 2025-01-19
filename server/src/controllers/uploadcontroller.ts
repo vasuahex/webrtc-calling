@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { uploadService, ChunkMetadata } from '../services/uploadservice';
 import jwt from "jsonwebtoken";
 import { Readable } from 'stream';
+import XlsxPopulate from 'xlsx-populate';
 
 class UploadController {
     async initiateUpload(req: Request, res: Response) {
@@ -32,8 +33,8 @@ class UploadController {
             const metadata: ChunkMetadata = JSON.parse(metadataRaw);
             const { ETag, PartNumber, progress } = await uploadService.uploadChunk(uploadId, key, chunkBuffer, metadata);
             res.json({ ETag, PartNumber, progress });
-        } catch (error) {
-            res.status(500).json({ error: 'Failed to upload chunk', uploadId });
+        } catch (error: any) {
+            res.status(500).json({ error: 'Failed to upload chunk', uploadId, message: error.message });
         }
     }
 
@@ -45,9 +46,9 @@ class UploadController {
             if (!uploadId || !key || !parts) {
                 return res.status(400).json({ error: 'Missing required parameters' });
             }
-
-            const location = await uploadService.completeMultipartUpload(uploadId, key, parts);
-            res.json({ location });
+            await uploadService.completeMultipartUpload(uploadId, key, parts);
+            const fileURL = await uploadService.getFileUrlFromS3(key);
+            res.json({ location: fileURL });
         } catch (error) {
             res.status(500).json({ error: 'Failed to complete upload' });
         }
@@ -173,6 +174,41 @@ class UploadController {
             }
 
             next();
+        } catch (error) {
+            res.status(401).json({ error: 'Invalid token' });
+        }
+    }
+    downloadExcel(req: Request, res: Response, next: Function) {
+        try {
+            const password = req.params.password
+
+
+            async function createPasswordProtectedExcel(password: string) {
+                try {
+                    console.log('Creating a new workbook...');
+                    const workbook = await XlsxPopulate.fromBlankAsync();
+
+                    console.log('Adding data to the workbook...');
+                    const sheet = workbook.sheet(0);
+                    sheet.cell("A1").value("Hello");
+                    sheet.cell("B1").value("World");
+                    sheet.cell("A2").value(123);
+                    sheet.cell("B2").value(456);
+
+                    console.log('Setting password protection...');
+                    await workbook.toFileAsync("./protected-file.xlsx", { password: password });
+
+                    console.log('Excel file created successfully!');
+                    console.log('File saved as: protected-file.xlsx');
+                    console.log('Password:', password);
+                } catch (error) {
+                    console.error('Error creating Excel file:', error);
+                }
+            }
+
+            // Create a password-protected Excel file
+            // const password = "mySecretPassword123";
+            createPasswordProtectedExcel(password);
         } catch (error) {
             res.status(401).json({ error: 'Invalid token' });
         }

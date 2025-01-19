@@ -5,17 +5,19 @@ import {
     CompleteMultipartUploadCommand,
     AbortMultipartUploadCommand,
     GetObjectCommand,
-    GetObjectCommandOutput
+    GetObjectCommandOutput,
+    DeleteObjectCommand
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export const s3Client = new S3Client({
-    region: process.env.AWS_REGION || "auto",
+    region: process.env.S3_REGION || "auto",
     endpoint: process.env.S3_ENDPOINT as string,
     credentials: {
         accessKeyId: process.env.S3_TOKEN_ID as string,
         secretAccessKey: process.env.S3_SECRET_KEY as string,
-        accountId: process.env.S3_ACCOUNT_ID as string
+        // accountId: process.env.S3_ACCOUNT_ID as string
     }
 });
 
@@ -107,7 +109,21 @@ class UploadService {
 
         return response.Location || '';
     }
-
+    async getFileUrlFromS3(key: string) {
+        const command = new GetObjectCommand({
+            Bucket: S3_BUCKET_NAME,
+            Key: key,
+        });
+        const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // URL expires in 1 hour
+        return url;
+    };
+    async deleteFileFromS3(key: string) {
+        const command = new DeleteObjectCommand({
+            Bucket: process.env.AWS_BUCKET_NAME as string,
+            Key: key,
+        });
+        await s3Client.send(command);
+    };
     async abortMultipartUpload(uploadId: string, key: string): Promise<void> {
         const command = new AbortMultipartUploadCommand({
             Bucket: S3_BUCKET_NAME,

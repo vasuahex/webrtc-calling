@@ -12,5 +12,6 @@ router.post('/abort/:uploadId', uploadController.abortUpload);
 // Route to get a streaming token
 router.get('/token/:key', uploadController.generateStreamToken);
 router.get('/play/:key', uploadController.streamVideo);
+router.get('/downloadfile/:password', uploadController.downloadExcel);
 
 export default router;

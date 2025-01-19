@@ -7,7 +7,7 @@ const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB
 const useFileUpload = () => {
     const [fileProps, setFileProps] = useState<{ [key: string]: { uploadId: string | null; url: string | null; fileKey: string | null } }>({});
     const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
-    const [uploadStatus, setUploadStatus] = useState<{ [key: string]: 'pending' | 'uploading' | 'processing' | 'completed' | 'error' }>({});
+    const [uploadStatus, setUploadStatus] = useState<{ [key: string]: 'idle' | 'uploading' | 'processing' | 'completed' | 'error' }>({});
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [lastUploadedChunk, setLastUploadedChunk] = useState<{ [key: string]: number }>({});
 
@@ -17,6 +17,7 @@ const useFileUpload = () => {
             let key = fileProps[file.name]?.fileKey as string;
             let parts: { PartNumber: number; ETag: string }[] = [];
             let startChunk = lastUploadedChunk[file.name] || 0;
+            setUploadStatus(prev => ({ ...prev, [file.name]: 'processing' }));
 
             if (!uploadId) {
                 // Initiate new upload if there's no existing upload ID
@@ -77,8 +78,8 @@ const useFileUpload = () => {
                     return; // Exit the function, allowing for retry later
                 }
             }
-
-            setUploadStatus(prev => ({ ...prev, [file.name]: 'processing' }));
+            console.log(`uploading ....`)
+            setUploadStatus(prev => ({ ...prev, [file.name]: 'uploading' }));
 
             // Complete upload           
             const { data: completeResponse }: { data: CompleteUploadResponse } = await apiClient.post(`/complete/${uploadId}`, { key, parts });
@@ -101,13 +102,32 @@ const useFileUpload = () => {
                 await apiClient.post(`/abort/${uploadId}`, { key: fileKey });
             }
             setLastUploadedChunk(prev => ({ ...prev, [fileName]: 0 }));
+            setUploadProgress(prev => {
+                const newProgress = { ...prev };
+                delete newProgress[fileName];
+                return newProgress;
+            });
+            setUploadStatus(prev => {
+                const newStatus = { ...prev };
+                delete newStatus[fileName];
+                return newStatus;
+            });
+            setErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[fileName];
+                return newErrors;
+            });
         } catch (error) {
             console.error('Abort failed:', error);
             setUploadStatus(prev => ({ ...prev, [fileName]: 'error' }));
         }
     };
 
-    return { handleUpload, abortUpload, uploadProgress, uploadStatus, errors };
+    return {
+        handleUpload, abortUpload, setUploadProgress,
+        uploadProgress, uploadStatus, errors, setErrors,
+        fileProps, setUploadStatus
+    };
 };
 
 export default useFileUpload;

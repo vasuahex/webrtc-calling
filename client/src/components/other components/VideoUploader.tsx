@@ -130,17 +130,9 @@ const AdvancedUploader: React.FC<AdvancedUploaderProps> = ({
     }, [maxFiles, selectedFiles.length]);
 
     const handleUpload = async (file: File) => {
-        try {
-            setUploadStatus(prev => ({ ...prev, [file.name]: 'uploading' }));
-
-            if (onUpload) {
-                await onUpload(file);
-            }
-        } catch (err) {
-            console.log(err);
-
-            setErrors(prev => ({ ...prev, [file.name]: 'Upload failed. Please try again.' }));
-            setUploadStatus(prev => ({ ...prev, [file.name]: 'error' }));
+        setUploadStatus(prev => ({ ...prev, [file.name]: 'uploading' }));
+        if (onUpload) {
+            await onUpload(file);
         }
     };
 
@@ -149,21 +141,6 @@ const AdvancedUploader: React.FC<AdvancedUploaderProps> = ({
             await onAbort(fileName);
         }
         setSelectedFiles(prev => prev.filter(f => f.name !== fileName));
-        setUploadProgress(prev => {
-            const newProgress = { ...prev };
-            delete newProgress[fileName];
-            return newProgress;
-        });
-        setUploadStatus(prev => {
-            const newStatus = { ...prev };
-            delete newStatus[fileName];
-            return newStatus;
-        });
-        setErrors(prev => {
-            const newErrors = { ...prev };
-            delete newErrors[fileName];
-            return newErrors;
-        });
     };
 
     const getFileIcon = (fileType: FileType) => {

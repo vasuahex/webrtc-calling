@@ -12,12 +12,13 @@ import Themes from './routes/Themes'
 import Pintrest from './routes/Pintrest'
 import VideoCall from './routes/VideoCall'
 import RichTextEditor from './reuse/RichTextEditor'
-
+import Groupvideocall from "./routes/Groupvideocall"
 import "./css/App.css"
 import 'react-toastify/dist/ReactToastify.css';
 import Fonts from './routes/Fonts'
 import FileUpload from './routes/FileUpload'
 import Videos from './routes/Videos'
+import VideoCallComponent from './components/videocall/VideoCall'
 
 const App = () => {
   return (
@@ -26,6 +27,8 @@ const App = () => {
         pauseOnFocusLoss draggable pauseOnHover theme="light" />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/groupvideocall" element={<Groupvideocall />} />
+        <Route path="/call/:id" element={<VideoCallComponent />} />
         <Route path="/fonts" element={<Fonts />} />
         <Route path="/richtexteditor" element={<RichTextEditor />} />
         <Route path="/videocall" element={<VideoCall />} />

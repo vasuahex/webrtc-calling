@@ -2,46 +2,48 @@ import React, { useState } from 'react'
 import VideoUploader, { FileConfig, UploadStatus } from '../components/other components/VideoUploader'
 import apiClient from '../reuse/apiClient';
 
-export const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB
+export const CHUNK_SIZE = 1 * 1024 * 1024; // 5 MB
 export interface UploadResponse {
     uploadId: string;
     key: string;
 }
 
-export interface ChunkResponse {
-    ETag: string;
-    PartNumber: number;
-}
+// export interface ChunkResponse {
+//     ETag: string;
+//     PartNumber: number;
+// }
 
 export interface CompleteUploadResponse {
     location: string;
 }
 
-export interface UploadProgressResponse {
-    uploadId: string;
-    fileName: string;
-    completedChunks: number;
-    totalChunks: number;
-    status: 'in-progress' | 'completed' | 'failed';
-}
+// export interface UploadProgressResponse {
+//     uploadId: string;
+//     fileName: string;
+//     completedChunks: number;
+//     totalChunks: number;
+//     status: 'in-progress' | 'completed' | 'failed';
+// }
 
-export interface ChunkMetadata {
-    chunkNumber: number;
-    totalChunks: number;
-    fileSize: number;
-    originalFileName: string;
-    mimeType: string;
-}
+// export interface ChunkMetadata {
+//     chunkNumber: number;
+//     totalChunks: number;
+//     fileSize: number;
+//     originalFileName: string;
+//     mimeType: string;
+// }
 
 
 interface FileUploadProps {
     uploadId: string | null; // Upload ID for tracking, can be null
     url: string | null;
+    fileKey: string
 }
 const FileUpload = () => {
     const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
     const [uploadStatus, setUploadStatus] = useState<{ [key: string]: UploadStatus }>({});
     const [fileProps, setFileProps] = useState<{ [key: string]: FileUploadProps }>({});
+    const [errors, setErrors] = useState<{ [fileName: string]: string }>({});
 
     const allowedTypes: FileConfig[] = [
         {
@@ -65,7 +67,7 @@ const FileUpload = () => {
             });
             const uploadId = initiateResponse.uploadId;
             const key = initiateResponse.key;
-            setFileProps(prev => ({ ...prev, [file.name]: { uploadId, url: null } }));
+            setFileProps(prev => ({ ...prev, [file.name]: { uploadId, url: null, fileKey: key } }));
 
             const parts: { PartNumber: number; ETag: string }[] = [];
             // Step 2: Split file into chunks and upload each chunk
@@ -103,27 +105,35 @@ const FileUpload = () => {
 
             // Step 3: Complete upload           
             const { data: completeResponse }: { data: CompleteUploadResponse } = await apiClient.post(`/complete/${uploadId}`, { key, parts });
-            setFileProps(prev => ({ ...prev, [file.name]: { uploadId, url: completeResponse.location } }));
+            setFileProps(prev => ({ ...prev, [file.name]: { uploadId, fileKey: key, url: completeResponse.location } }));
             setUploadStatus(prev => ({ ...prev, [file.name]: 'completed' }));
         } catch (error: any) {
-            setUploadStatus(prev => ({ ...prev, [file.name]: 'error' }));
+            console.log(error);
+
             if (error.response?.status === 400) {
                 const uploadId = error.response.data?.uploadId;
                 if (uploadId) {
                     await abortUpload(uploadId);
                 }
             }
+            setErrors(prev => ({ ...prev, [file.name]: 'Upload failed. Please try again.' }));
+            setUploadStatus(prev => ({ ...prev, [file.name]: 'error' }));
+
         }
     };
 
     const abortUpload = async (fileName: string) => {
         try {
             const uploadId = fileProps[fileName]?.uploadId;
+            const fileKey = fileProps[fileName]?.fileKey;
+
             if (uploadId) {
-                await apiClient.post(`/abort/${uploadId}`);
+                await apiClient.post(`/abort/${uploadId}`, { key: fileKey });
             }
         } catch (error) {
             console.error('Abort failed:', error);
+            setUploadStatus(prev => ({ ...prev, [fileName]: 'error' }));
+
         }
     }
     const handleOpenFile = (fileName: string) => {
@@ -136,8 +146,8 @@ const FileUpload = () => {
 
     return (
         <div className='bg-black/80 min-h-screen'>
-            <VideoUploader uploadProgress={uploadProgress} setUploadProgress={setUploadProgress}
-                setUploadStatus={setUploadStatus} uploadStatus={uploadStatus} onAbort={abortUpload}
+            <VideoUploader uploadProgress={uploadProgress} setUploadProgress={setUploadProgress} setErrors={setErrors}
+                setUploadStatus={setUploadStatus} uploadStatus={uploadStatus} onAbort={abortUpload} errors={errors}
                 onUpload={handleUpload} maxFiles={10} allowedTypes={allowedTypes} handleOpenFile={handleOpenFile} />
         </div>
     )

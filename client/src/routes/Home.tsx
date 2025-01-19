@@ -15,6 +15,7 @@ const Home = () => {
         <Link to="/fonts" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-purple-300'>fonts</Link>
         <Link to="/fileupload" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-indigo-500'>File upload</Link>
         <Link to="/videos" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] w-fit bg-green-600'>Videos</Link>
+        <Link to="/groupvideocall" className='px-3 py-2 border-2 rounded-sm block min-w-[200px] text-white w-fit bg-yellow-600'>Groupvideocall</Link>
       </div>
 
     </div>

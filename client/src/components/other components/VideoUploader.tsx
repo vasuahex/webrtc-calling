@@ -47,6 +47,8 @@ interface AdvancedUploaderProps {
     setUploadProgress?: React.Dispatch<React.SetStateAction<{ [key: string]: number }>>; // Setter for uploadProgress
     uploadStatus?: { [key: string]: UploadStatus }; // Tracks status for each file
     setUploadStatus?: React.Dispatch<React.SetStateAction<{ [key: string]: UploadStatus }>>;
+    setErrors?: React.Dispatch<React.SetStateAction<{ [fileName: string]: string; }>>
+    errors?: { [fileName: string]: string }
 }
 
 const DEFAULT_FILE_CONFIGS: FileConfig[] = []
@@ -65,9 +67,10 @@ const AdvancedUploader: React.FC<AdvancedUploaderProps> = ({
     setUploadProgress = () => { },
     uploadStatus = {},
     setUploadStatus = () => { },
+    errors = {},
+    setErrors = () => { }
 }) => {
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-    const [errors, setErrors] = useState<{ [fileName: string]: string }>({});
 
 
     const getFileType = (file: File): FileType => {
@@ -134,6 +137,8 @@ const AdvancedUploader: React.FC<AdvancedUploaderProps> = ({
                 await onUpload(file);
             }
         } catch (err) {
+            console.log(err);
+
             setErrors(prev => ({ ...prev, [file.name]: 'Upload failed. Please try again.' }));
             setUploadStatus(prev => ({ ...prev, [file.name]: 'error' }));
         }

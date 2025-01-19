@@ -10,7 +10,16 @@
 	font-style: normal;
 }
 
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+  }
 
+  body {
+    @apply bg-neutral-900 text-neutral-50;
+  }
+}
 
 .dark {
 	--color-primary: #8a1e4f;

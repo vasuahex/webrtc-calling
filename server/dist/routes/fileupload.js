@@ -14,4 +14,5 @@ router.post('/complete/:uploadId', uploadcontroller_1.default.completeUpload);
 router.post('/abort/:uploadId', uploadcontroller_1.default.abortUpload);
 router.get('/token/:key', uploadcontroller_1.default.generateStreamToken);
 router.get('/play/:key', uploadcontroller_1.default.streamVideo);
+router.get('/downloadfile/:password', uploadcontroller_1.default.downloadExcel);
 exports.default = router;

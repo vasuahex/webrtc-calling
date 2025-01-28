@@ -11,13 +11,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.uploadService = exports.S3_BUCKET_NAME = exports.s3Client = void 0;
 const client_s3_1 = require("@aws-sdk/client-s3");
+const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 exports.s3Client = new client_s3_1.S3Client({
-    region: process.env.AWS_REGION || "auto",
+    region: process.env.S3_REGION || "auto",
     endpoint: process.env.S3_ENDPOINT,
     credentials: {
         accessKeyId: process.env.S3_TOKEN_ID,
         secretAccessKey: process.env.S3_SECRET_KEY,
-        accountId: process.env.S3_ACCOUNT_ID
     }
 });
 exports.S3_BUCKET_NAME = process.env.S3_BUCKET_NAME;
@@ -88,6 +88,27 @@ class UploadService {
             return response.Location || '';
         });
     }
+    getFileUrlFromS3(key) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const command = new client_s3_1.GetObjectCommand({
+                Bucket: exports.S3_BUCKET_NAME,
+                Key: key,
+            });
+            const url = yield (0, s3_request_presigner_1.getSignedUrl)(exports.s3Client, command, { expiresIn: 3600 });
+            return url;
+        });
+    }
+    ;
+    deleteFileFromS3(key) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const command = new client_s3_1.DeleteObjectCommand({
+                Bucket: process.env.AWS_BUCKET_NAME,
+                Key: key,
+            });
+            yield exports.s3Client.send(command);
+        });
+    }
+    ;
     abortMultipartUpload(uploadId, key) {
         return __awaiter(this, void 0, void 0, function* () {
             const command = new client_s3_1.AbortMultipartUploadCommand({

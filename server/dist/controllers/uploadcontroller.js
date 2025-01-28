@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const uploadservice_1 = require("../services/uploadservice");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const stream_1 = require("stream");
+const xlsx_populate_1 = __importDefault(require("xlsx-populate"));
 class UploadController {
     initiateUpload(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -47,7 +48,7 @@ class UploadController {
                 res.json({ ETag, PartNumber, progress });
             }
             catch (error) {
-                res.status(500).json({ error: 'Failed to upload chunk', uploadId });
+                res.status(500).json({ error: 'Failed to upload chunk', uploadId, message: error.message });
             }
         });
     }
@@ -59,8 +60,9 @@ class UploadController {
                 if (!uploadId || !key || !parts) {
                     return res.status(400).json({ error: 'Missing required parameters' });
                 }
-                const location = yield uploadservice_1.uploadService.completeMultipartUpload(uploadId, key, parts);
-                res.json({ location });
+                yield uploadservice_1.uploadService.completeMultipartUpload(uploadId, key, parts);
+                const fileURL = yield uploadservice_1.uploadService.getFileUrlFromS3(key);
+                res.json({ location: fileURL });
             }
             catch (error) {
                 res.status(500).json({ error: 'Failed to complete upload' });
@@ -171,6 +173,37 @@ class UploadController {
                 return res.status(403).json({ error: 'Invalid token for this video' });
             }
             next();
+        }
+        catch (error) {
+            res.status(401).json({ error: 'Invalid token' });
+        }
+    }
+    downloadExcel(req, res, next) {
+        try {
+            const password = req.params.password;
+            function createPasswordProtectedExcel(password) {
+                return __awaiter(this, void 0, void 0, function* () {
+                    try {
+                        console.log('Creating a new workbook...');
+                        const workbook = yield xlsx_populate_1.default.fromBlankAsync();
+                        console.log('Adding data to the workbook...');
+                        const sheet = workbook.sheet(0);
+                        sheet.cell("A1").value("Hello");
+                        sheet.cell("B1").value("World");
+                        sheet.cell("A2").value(123);
+                        sheet.cell("B2").value(456);
+                        console.log('Setting password protection...');
+                        yield workbook.toFileAsync("./protected-file.xlsx", { password: password });
+                        console.log('Excel file created successfully!');
+                        console.log('File saved as: protected-file.xlsx');
+                        console.log('Password:', password);
+                    }
+                    catch (error) {
+                        console.error('Error creating Excel file:', error);
+                    }
+                });
+            }
+            createPasswordProtectedExcel(password);
         }
         catch (error) {
             res.status(401).json({ error: 'Invalid token' });

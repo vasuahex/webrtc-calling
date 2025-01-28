@@ -129,7 +129,7 @@ async function createWorkerFunc() {
         const worker = await createWorker({
             logLevel: 'debug',
             rtcMinPort: 10000,
-            rtcMaxPort: 20100 + i * 100,
+            rtcMaxPort: 10000 + i * 100,
             logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
         });
 

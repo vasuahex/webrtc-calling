@@ -38,8 +38,8 @@ COPY dist ./dist
 EXPOSE 9090
 
 # Expose the Mediasoup ports for WebRTC transport connections
-EXPOSE 10000-49999/udp
-EXPOSE 10000-49999/tcp
+EXPOSE 10000-10500/udp
+EXPOSE 10000-10500/tcp
 
 # Start the application directly
 CMD ["node", "dist/index.js"]

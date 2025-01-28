@@ -6,8 +6,8 @@ services:
     container_name: webrtc-server
     ports:
       - "9090:9090" # Map host port 9090 to container port 9090
-      - "10000-49999:10000-49999/udp" # Map UDP ports for WebRTC
-      - "10000-49999:10000-49999/tcp" # Map TCP ports for WebRTC
+      - "10000-10500:10000-10500/udp"
+      - "10000-10500:10000-10500/tcp"
     environment:
       - NODE_ENV=production
       - PORT=9090

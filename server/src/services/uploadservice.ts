@@ -6,10 +6,13 @@ import {
     AbortMultipartUploadCommand,
     GetObjectCommand,
     GetObjectCommandOutput,
-    DeleteObjectCommand
+    DeleteObjectCommand,
+    ListPartsCommand
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import crypto from "crypto"
+import fs from "fs"
 
 export const s3Client = new S3Client({
     region: process.env.S3_REGION || "auto",
@@ -29,6 +32,7 @@ export interface ChunkMetadata {
     fileSize: number;
     originalFileName: string;
     mimeType: string;
+    checksum: string
 }
 
 export interface UploadProgress {
@@ -39,8 +43,26 @@ export interface UploadProgress {
     status: 'in-progress' | 'completed' | 'failed';
 }
 
+function calculateChunkChecksum(chunkBuffer: Buffer): string {
+    const hash = crypto.createHash('sha256');
+    hash.update(chunkBuffer);
+    return hash.digest('hex');
+}
+
+// Function to calculate the checksum of the entire file
+async function calculateFileChecksum(filePath: string): Promise<string> {
+    const hash = crypto.createHash('sha256');
+    const fileStream = fs.createReadStream(filePath);
+
+    return new Promise((resolve, reject) => {
+        fileStream.on('data', (chunk) => hash.update(chunk));
+        fileStream.on('end', () => resolve(hash.digest('hex')));
+        fileStream.on('error', (err) => reject(err));
+    });
+}
+
+
 class UploadService {
-    private uploadProgress: Map<string, UploadProgress> = new Map();
 
     async initiateMultipartUpload(fileName: string, mimeType: string): Promise<{ uploadId: string; key: string }> {
         const key = `videos/${Date.now()}-${fileName}`;
@@ -52,42 +74,44 @@ class UploadService {
 
         const { UploadId } = await s3Client.send(command);
         if (!UploadId) throw new Error('Failed to initiate multipart upload');
-
-        this.uploadProgress.set(UploadId, {
-            uploadId: UploadId,
-            fileName,
-            completedChunks: 0,
-            totalChunks: 0,
-            status: 'in-progress'
-        });
-
         return { uploadId: UploadId, key };
+    }
+    async getUploadedParts(uploadId: string, key: string) {
+        const command = new ListPartsCommand({
+            Bucket: process.env.S3_BUCKET_NAME,
+            Key: key,
+            UploadId: uploadId,
+        });
+        const response = await s3Client.send(command);
+
+        const parts = response.Parts?.map(part => ({
+            PartNumber: part.PartNumber,
+            ETag: part.ETag,
+        })) || [];
+        return parts
     }
 
     async uploadChunk(uploadId: string, key: string, chunkBuffer: Buffer, metadata: ChunkMetadata)
-        : Promise<{ ETag: string; PartNumber: number; progress: UploadProgress }> {
+        : Promise<{ ETag: string; PartNumber: number, Checksum: string }> {
+        const checksum = calculateChunkChecksum(chunkBuffer);
+
         const command = new UploadPartCommand({
             Bucket: S3_BUCKET_NAME,
             Key: key,
             PartNumber: metadata.chunkNumber,
             UploadId: uploadId,
-            Body: chunkBuffer
+            Body: chunkBuffer,
         });
 
         const response = await s3Client.send(command);
         if (!response.ETag) throw new Error('Failed to upload chunk');
 
-        const progress = this.uploadProgress.get(uploadId);
-        if (progress) {
-            progress.completedChunks += 1;
-            progress.totalChunks = metadata.totalChunks;
-            this.uploadProgress.set(uploadId, progress);
-        }
+
 
         return {
             ETag: response.ETag,
             PartNumber: metadata.chunkNumber,
-            progress: progress!
+            Checksum: checksum
         };
     }
 
@@ -101,12 +125,6 @@ class UploadService {
         });
 
         const response = await s3Client.send(command);
-        const progress = this.uploadProgress.get(uploadId);
-        if (progress) {
-            progress.status = 'completed';
-            this.uploadProgress.set(uploadId, progress);
-        }
-
         return response.Location || '';
     }
     async getFileUrlFromS3(key: string) {
@@ -132,11 +150,6 @@ class UploadService {
         });
 
         await s3Client.send(command);
-        const progress = this.uploadProgress.get(uploadId);
-        if (progress) {
-            progress.status = 'failed';
-            this.uploadProgress.set(uploadId, progress);
-        }
     }
 
     async getStreamVideo(key: string, range: string) {

@@ -9,6 +9,7 @@ router.post('/initiate', uploadController.initiateUpload);
 router.post('/chunk/:uploadId', upload.single('chunk'), uploadController.uploadChunk);
 router.post('/complete/:uploadId', uploadController.completeUpload);
 router.post('/abort/:uploadId', uploadController.abortUpload);
+router.get('/parts/:uploadId', uploadController.getPartsByKey);
 // Route to get a streaming token
 router.get('/token/:key', uploadController.generateStreamToken);
 router.get('/play/:key', uploadController.streamVideo);

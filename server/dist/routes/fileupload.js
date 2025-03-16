@@ -12,6 +12,8 @@ router.post('/initiate', uploadcontroller_1.default.initiateUpload);
 router.post('/chunk/:uploadId', upload.single('chunk'), uploadcontroller_1.default.uploadChunk);
 router.post('/complete/:uploadId', uploadcontroller_1.default.completeUpload);
 router.post('/abort/:uploadId', uploadcontroller_1.default.abortUpload);
+router.get('/parts/:uploadId', uploadcontroller_1.default.getPartsByKey);
 router.get('/token/:key', uploadcontroller_1.default.generateStreamToken);
 router.get('/play/:key', uploadcontroller_1.default.streamVideo);
+router.get('/downloadfile/:password', uploadcontroller_1.default.downloadExcel);
 exports.default = router;

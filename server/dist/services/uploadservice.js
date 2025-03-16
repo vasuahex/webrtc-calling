@@ -8,23 +8,41 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.uploadService = exports.S3_BUCKET_NAME = exports.s3Client = void 0;
 const client_s3_1 = require("@aws-sdk/client-s3");
+const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
+const crypto_1 = __importDefault(require("crypto"));
+const fs_1 = __importDefault(require("fs"));
 exports.s3Client = new client_s3_1.S3Client({
-    region: process.env.AWS_REGION || "auto",
+    region: process.env.S3_REGION || "auto",
     endpoint: process.env.S3_ENDPOINT,
     credentials: {
         accessKeyId: process.env.S3_TOKEN_ID,
         secretAccessKey: process.env.S3_SECRET_KEY,
-        accountId: process.env.S3_ACCOUNT_ID
     }
 });
 exports.S3_BUCKET_NAME = process.env.S3_BUCKET_NAME;
+function calculateChunkChecksum(chunkBuffer) {
+    const hash = crypto_1.default.createHash('sha256');
+    hash.update(chunkBuffer);
+    return hash.digest('hex');
+}
+function calculateFileChecksum(filePath) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const hash = crypto_1.default.createHash('sha256');
+        const fileStream = fs_1.default.createReadStream(filePath);
+        return new Promise((resolve, reject) => {
+            fileStream.on('data', (chunk) => hash.update(chunk));
+            fileStream.on('end', () => resolve(hash.digest('hex')));
+            fileStream.on('error', (err) => reject(err));
+        });
+    });
+}
 class UploadService {
-    constructor() {
-        this.uploadProgress = new Map();
-    }
     initiateMultipartUpload(fileName, mimeType) {
         return __awaiter(this, void 0, void 0, function* () {
             const key = `videos/${Date.now()}-${fileName}`;
@@ -36,38 +54,42 @@ class UploadService {
             const { UploadId } = yield exports.s3Client.send(command);
             if (!UploadId)
                 throw new Error('Failed to initiate multipart upload');
-            this.uploadProgress.set(UploadId, {
-                uploadId: UploadId,
-                fileName,
-                completedChunks: 0,
-                totalChunks: 0,
-                status: 'in-progress'
-            });
             return { uploadId: UploadId, key };
+        });
+    }
+    getUploadedParts(uploadId, key) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            const command = new client_s3_1.ListPartsCommand({
+                Bucket: process.env.S3_BUCKET_NAME,
+                Key: key,
+                UploadId: uploadId,
+            });
+            const response = yield exports.s3Client.send(command);
+            const parts = ((_a = response.Parts) === null || _a === void 0 ? void 0 : _a.map(part => ({
+                PartNumber: part.PartNumber,
+                ETag: part.ETag,
+            }))) || [];
+            return parts;
         });
     }
     uploadChunk(uploadId, key, chunkBuffer, metadata) {
         return __awaiter(this, void 0, void 0, function* () {
+            const checksum = calculateChunkChecksum(chunkBuffer);
             const command = new client_s3_1.UploadPartCommand({
                 Bucket: exports.S3_BUCKET_NAME,
                 Key: key,
                 PartNumber: metadata.chunkNumber,
                 UploadId: uploadId,
-                Body: chunkBuffer
+                Body: chunkBuffer,
             });
             const response = yield exports.s3Client.send(command);
             if (!response.ETag)
                 throw new Error('Failed to upload chunk');
-            const progress = this.uploadProgress.get(uploadId);
-            if (progress) {
-                progress.completedChunks += 1;
-                progress.totalChunks = metadata.totalChunks;
-                this.uploadProgress.set(uploadId, progress);
-            }
             return {
                 ETag: response.ETag,
                 PartNumber: metadata.chunkNumber,
-                progress: progress
+                Checksum: checksum
             };
         });
     }
@@ -80,14 +102,30 @@ class UploadService {
                 MultipartUpload: { Parts: parts.sort((a, b) => a.PartNumber - b.PartNumber) }
             });
             const response = yield exports.s3Client.send(command);
-            const progress = this.uploadProgress.get(uploadId);
-            if (progress) {
-                progress.status = 'completed';
-                this.uploadProgress.set(uploadId, progress);
-            }
             return response.Location || '';
         });
     }
+    getFileUrlFromS3(key) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const command = new client_s3_1.GetObjectCommand({
+                Bucket: exports.S3_BUCKET_NAME,
+                Key: key,
+            });
+            const url = yield (0, s3_request_presigner_1.getSignedUrl)(exports.s3Client, command, { expiresIn: 3600 });
+            return url;
+        });
+    }
+    ;
+    deleteFileFromS3(key) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const command = new client_s3_1.DeleteObjectCommand({
+                Bucket: process.env.AWS_BUCKET_NAME,
+                Key: key,
+            });
+            yield exports.s3Client.send(command);
+        });
+    }
+    ;
     abortMultipartUpload(uploadId, key) {
         return __awaiter(this, void 0, void 0, function* () {
             const command = new client_s3_1.AbortMultipartUploadCommand({
@@ -96,11 +134,6 @@ class UploadService {
                 UploadId: uploadId
             });
             yield exports.s3Client.send(command);
-            const progress = this.uploadProgress.get(uploadId);
-            if (progress) {
-                progress.status = 'failed';
-                this.uploadProgress.set(uploadId, progress);
-            }
         });
     }
     getStreamVideo(key, range) {

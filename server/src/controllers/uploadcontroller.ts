@@ -31,10 +31,25 @@ class UploadController {
                 return res.status(400).json({ error: 'Missing required parameters' });
             }
             const metadata: ChunkMetadata = JSON.parse(metadataRaw);
-            const { ETag, PartNumber, progress } = await uploadService.uploadChunk(uploadId, key, chunkBuffer, metadata);
-            res.json({ ETag, PartNumber, progress });
+            const { ETag, PartNumber } = await uploadService.uploadChunk(uploadId, key, chunkBuffer, metadata);
+            res.json({ ETag, PartNumber });
         } catch (error: any) {
             res.status(500).json({ error: 'Failed to upload chunk', uploadId, message: error.message });
+        }
+    }
+    async getPartsByKey(req: Request, res: Response) {
+        const { uploadId } = req.params;
+        const { key } = req.query;
+
+        if (!key) {
+            return res.status(400).json({ error: 'Missing key parameter' });
+        }
+
+        try {
+            const parts = await uploadService.getUploadedParts(uploadId, key as string)
+            res.json({ parts });
+        } catch (error: any) {
+            res.status(500).json({ error: 'Failed to list parts', uploadId, message: error.message });
         }
     }
 
@@ -58,6 +73,7 @@ class UploadController {
         try {
             const { uploadId } = req.params;
             const { key } = req.body;
+            console.log("sdfdsfdsfd", uploadId, key);
 
             if (!uploadId || !key) {
                 return res.status(400).json({ error: 'Missing required parameters' });
@@ -181,8 +197,6 @@ class UploadController {
     downloadExcel(req: Request, res: Response, next: Function) {
         try {
             const password = req.params.password
-
-
             async function createPasswordProtectedExcel(password: string) {
                 try {
                     console.log('Creating a new workbook...');

@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: webrtc-server
+    ports:
+      - "9090:9090" # Map host port 9090 to container port 9090
+      - "10000-10500:10000-10500/udp"
+      - "10000-10500:10000-10500/tcp"
+    environment:
+      - NODE_ENV=production
+      - PORT=9090
+      - MEDIASOUP_SKIP_WORKER_PREBUILT_DOWNLOAD=true
+    restart: unless-stopped

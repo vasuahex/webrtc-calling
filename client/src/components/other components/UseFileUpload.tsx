@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { UploadResponse, CompleteUploadResponse } from '../../routes/FileUpload';
 import apiClient from '../../reuse/apiClient';
-
+import { buf } from "crc-32"
 const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB
 
 const useFileUpload = () => {
@@ -63,6 +63,8 @@ const useFileUpload = () => {
                     const { data: chunkResponse }: { data: { PartNumber: number; ETag: string } } = await apiClient.post(`/chunk/${uploadId}`, formData, {
                         headers: { 'Content-Type': 'multipart/form-data' },
                         onUploadProgress: (progressEvent) => {
+                            console.log(progressEvent);
+
                             if (progressEvent.total) {
                                 const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
                                 const overallProgress = Math.round(((chunkNumber + progress / 100) / totalChunks) * 100);

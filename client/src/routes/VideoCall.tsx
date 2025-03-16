@@ -92,7 +92,6 @@ const VideoCall: React.FC = () => {
     socketRef.current = io(import.meta.env.VITE_API_SOCKET_URL, {
       transports: ['websocket'],
     });
-
     const handleSocketEvents = () => {
       socketRef.current!.on('connection-success', ({ socketId }) => {
         setSocketId(socketId);
@@ -214,7 +213,6 @@ const VideoCall: React.FC = () => {
         toast.error(`${params.error}`, { position: "top-left" });
         return;
       }
-
       const transport = device.createSendTransport({ ...params, iceServers });
       transport.on('connectionstatechange', (state) => {
         console.log(`Sender transport ${transport.id} connection state changed to ${state}`);

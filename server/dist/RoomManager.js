@@ -88,5 +88,13 @@ class RoomManager {
         const peer = this.getPeer(roomId, peerId);
         return Array.from((peer === null || peer === void 0 ? void 0 : peer.transports) || []).find(t => t.transport.id === transportId);
     }
+    static removeConsumer(roomId, peerId, consumer) {
+        const room = exports.rooms.get(roomId);
+        const peer = room === null || room === void 0 ? void 0 : room.peers.get(peerId);
+        if (!peer)
+            return false;
+        peer.consumers.delete(consumer);
+        return true;
+    }
 }
 exports.default = RoomManager;

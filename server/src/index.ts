@@ -128,8 +128,8 @@ async function createWorkerFunc() {
     for (let i = 0; i < numCPUs; i++) {
         const worker = await createWorker({
             logLevel: 'debug',
-            rtcMinPort: 10000,
-            rtcMaxPort: 10000 + i * 100,
+            rtcMinPort: 10000 + (i * 1000),
+            rtcMaxPort: 10999 + (i * 1000),
             logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'simulcast', 'svc', 'sctp'],
         });
 
@@ -144,20 +144,25 @@ async function createWorkerFunc() {
 console.log(Helpers.getPublicIp());
 
 async function createWebRtcTransport(router: Router) {
-    return router.createWebRtcTransport({
-        listenIps: [
-            {
-                ip: '0.0.0.0',
-                announcedIp: Helpers.getPublicIp(),
-            },
-        ],
-        initialAvailableOutgoingBitrate: 1000000,
-        enableUdp: true,
-        enableTcp: true,
-        preferUdp: true,
-        enableSctp: true,
-        // iceConsentTimeout: 8000,
-    });
+    try {
+        const transport = await router.createWebRtcTransport({
+            listenIps: [
+                {
+                    ip: '0.0.0.0',
+                    announcedIp: Helpers.getPublicIp(),
+                },
+            ],
+            initialAvailableOutgoingBitrate: 1000000,
+            enableUdp: true,
+            enableTcp: true,
+            preferUdp: true,
+            enableSctp: true,
+        });
+        return transport;
+    } catch (error) {
+        console.error('Error creating WebRTC transport:', error);
+        throw error;
+    }
 }
 
 // Socket.IO handlers
@@ -210,28 +215,42 @@ io.on('connection', async (socket) => {
     });
 
     socket.on('createWebRtcTransport', async ({ roomId, direction }, callback) => {
-        const router = RoomManager.getRouter(roomId);
-        if (!router) {
-            callback({ params: { error: 'Room not found' } });
-            return;
-        }
-
         try {
+            const router = RoomManager.getRouter(roomId);
+            if (!router) {
+                console.error(`Room ${roomId} not found for transport creation`);
+                callback({ params: { error: 'Room not found' } });
+                return;
+            }
+
+            console.log(`Creating ${direction} transport for room ${roomId}`);
             const transport = await createWebRtcTransport(router);
+            
             transport.setMaxIncomingBitrate(1500000);
             transport.setMaxOutgoingBitrate(1500000);
-            RoomManager.addTransport(roomId, socket.id, { transport, direction });
+            
+            // Store transport info
+            const success = RoomManager.addTransport(roomId, socket.id, { transport, direction });
+            if (!success) {
+                console.error(`Failed to add transport to room ${roomId}`);
+                transport.close();
+                callback({ params: { error: 'Failed to add transport to room' } });
+                return;
+            }
 
             transport.on('dtlsstatechange', (dtlsState) => {
+                console.log(`DTLS state changed to ${dtlsState} for ${direction} transport ${transport.id}`);
                 if (dtlsState === 'closed') {
                     transport.close();
                 }
             });
+
             transport.on('icestatechange', (iceState) => {
-                console.log('ICE State:', iceState);
+                console.log(`ICE State for ${direction} transport ${transport.id}:`, iceState);
             });
+
             transport.on('@close', () => {
-                console.log('Transport closed');
+                console.log(`${direction} transport ${transport.id} closed`);
             });
 
             callback({
@@ -244,7 +263,8 @@ io.on('connection', async (socket) => {
                 },
             });
         } catch (err) {
-            callback({ params: { error: 'Failed to create transport' } });
+            console.error(`Failed to create ${direction} transport:`, err);
+            callback({ params: { error: err instanceof Error ? err.message : 'Failed to create transport' } });
         }
     });
 
@@ -252,13 +272,16 @@ io.on('connection', async (socket) => {
         try {
             const transportInfo = RoomManager.findTransport(roomId, socket.id, transportId);
             if (!transportInfo) {
+                console.error(`Transport ${transportId} not found in room ${roomId}`);
                 callback({ error: 'Transport not found' });
                 return;
             }
 
+            console.log(`Connecting transport ${transportId} in room ${roomId}`);
             await transportInfo.transport.connect({ dtlsParameters });
             callback();
         } catch (error: any) {
+            console.error(`Failed to connect transport ${transportId}:`, error);
             callback({ error: error.message });
         }
     });
@@ -272,29 +295,36 @@ io.on('connection', async (socket) => {
             return;
         }
 
-        const producer = await transportInfo.transport.produce({
-            kind,
-            rtpParameters,
-            appData
-        });
-
-        RoomManager.addProducer(roomId, socket.id, producer);
-
-        producer.on('transportclose', () => {
-            producer.close();
-            socket.to(roomId).emit('producerClosed', {
-                producerId: producer.id,
-                peerId: socket.id
+        try {
+            const producer = await transportInfo.transport.produce({
+                kind,
+                rtpParameters,
+                appData
             });
-        });
 
-        callback({ id: producer.id });
-        socket.to(roomId).emit('newProducer', {
-            producerId: producer.id,
-            producerSocketId: socket.id,
-            roomId,
-            kind
-        });
+            RoomManager.addProducer(roomId, socket.id, producer);
+
+            producer.on('transportclose', () => {
+                producer.close();
+                socket.to(roomId).emit('producerClosed', {
+                    producerId: producer.id,
+                    peerId: socket.id
+                });
+            });
+
+            callback({ id: producer.id });
+            
+            // Notify all peers in the room about the new producer
+            socket.to(roomId).emit('newProducer', {
+                producerId: producer.id,
+                producerSocketId: socket.id,
+                roomId,
+                kind
+            });
+        } catch (error) {
+            console.error('Failed to produce:', error);
+            callback({ error: 'Failed to produce' });
+        }
     });
 
     socket.on('consume', async ({ roomId, producerId, rtpCapabilities }, callback) => {
@@ -304,11 +334,13 @@ io.on('connection', async (socket) => {
             const producer = producers.find(p => p.id === producerId);
 
             if (!router || !producer) {
+                console.error('Room or Producer not found:', { roomId, producerId });
                 callback({ error: 'Room or Producer not found' });
                 return;
             }
 
             if (!router.canConsume({ producerId, rtpCapabilities })) {
+                console.error('Cannot consume with given parameters:', { producerId, rtpCapabilities });
                 callback({ error: "Can't consume - incompatible parameters" });
                 return;
             }
@@ -318,31 +350,45 @@ io.on('connection', async (socket) => {
                 .find(t => t.direction === 'recv');
 
             if (!recvTransport) {
+                console.error('Receive transport not found for peer:', socket.id);
                 callback({ error: 'Receive transport not found' });
                 return;
             }
 
+            console.log(`Creating consumer for producer ${producerId} in room ${roomId}`);
             const consumer = await recvTransport.transport.consume({
                 producerId,
                 rtpCapabilities,
-                paused: true,
+                paused: producer.kind === 'video', // Only pause video consumers initially
             });
 
             RoomManager.addConsumer(roomId, socket.id, consumer);
 
+            // Set up consumer event handlers
             consumer.on('transportclose', () => {
+                console.log(`Consumer ${consumer.id} transport closed`);
                 consumer.close();
+                RoomManager.removeConsumer(roomId, socket.id, consumer);
             });
 
             consumer.on('producerclose', () => {
+                console.log(`Consumer ${consumer.id} producer closed`);
                 consumer.close();
+                RoomManager.removeConsumer(roomId, socket.id, consumer);
                 socket.emit('consumerClosed', { consumerId: consumer.id });
             });
-            consumer.on('producerresume', () => {
-                console.log('producerresumed');
-            });
-            console.log(consumer.producerPaused);
 
+            consumer.on('producerpause', () => {
+                console.log(`Consumer ${consumer.id} producer paused`);
+                consumer.pause();
+            });
+
+            consumer.on('producerresume', () => {
+                console.log(`Consumer ${consumer.id} producer resumed`);
+                consumer.resume();
+            });
+
+            console.log(`Consumer created successfully: ${consumer.id}`);
             callback({
                 id: consumer.id,
                 producerId: producer.id,
@@ -351,25 +397,29 @@ io.on('connection', async (socket) => {
                 producerPaused: consumer.producerPaused
             });
         } catch (error: any) {
+            console.error('Failed to consume:', error);
             callback({ error: error.message });
         }
     });
 
     socket.on('resumeConsumer', async ({ roomId, consumerId }, callback) => {
         try {
-
+            console.log(`Attempting to resume consumer ${consumerId} in room ${roomId}`);
             const peer = RoomManager.getPeer(roomId, socket.id);
             const consumer = Array.from(peer?.consumers || [])
                 .find(c => c.id === consumerId);
 
             if (!consumer) {
+                console.error(`Consumer ${consumerId} not found for peer ${socket.id}`);
                 callback({ params: { error: 'Consumer not found' } });
                 return;
             }
 
             await consumer.resume();
+            console.log(`Consumer ${consumerId} resumed successfully`);
             callback({ params: "success" });
         } catch (error: any) {
+            console.error(`Error resuming consumer ${consumerId}:`, error);
             callback({ params: { error: error.message } });
         }
     });
@@ -383,6 +433,17 @@ io.on('connection', async (socket) => {
         // Find all rooms this socket is in and remove the peer
         rooms.forEach((_, roomId) => {
             if (RoomManager.getPeer(roomId, socket.id)) {
+                // Close all transports before removing peer
+                const peer = RoomManager.getPeer(roomId, socket.id);
+                if (peer) {
+                    peer.transports.forEach(transportInfo => {
+                        try {
+                            transportInfo.transport.close();
+                        } catch (error) {
+                            console.error('Error closing transport:', error);
+                        }
+                    });
+                }
                 RoomManager.removePeer(roomId, socket.id);
                 socket.to(roomId).emit('peerLeft', { peerId: socket.id });
             }

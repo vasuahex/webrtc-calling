@@ -132,6 +132,16 @@ class RoomManager {
         const peer = this.getPeer(roomId, peerId);
         return Array.from(peer?.transports || []).find(t => t.transport.id === transportId);
     }
+
+    // Remove consumer from a peer
+    static removeConsumer(roomId: string, peerId: string, consumer: Consumer): boolean {
+        const room = rooms.get(roomId);
+        const peer = room?.peers.get(peerId);
+        if (!peer) return false;
+
+        peer.consumers.delete(consumer);
+        return true;
+    }
 }
 
 

@@ -1,140 +1,198 @@
 import { Router, Transport, Producer, Consumer } from 'mediasoup/node/lib/types';
 
-// Define interfaces for better type safety
+export const mediaCodecs: any[] = [
+  {
+    kind: 'audio',
+    mimeType: 'audio/opus',
+    clockRate: 48000,
+    channels: 2,
+  },
+  {
+    kind: 'video',
+    mimeType: 'video/VP8',
+    clockRate: 90000,
+    parameters: { 'x-google-start-bitrate': 1000 },
+  },
+];
+
 interface TransportInfo {
-    transport: Transport;
-    direction: 'send' | 'recv';
+  transport: Transport;
+  direction: 'send' | 'recv';
 }
 
 interface PeerInfo {
-    socket: any;
-    transports: Set<TransportInfo>;
-    producers: Set<Producer>;
-    consumers: Set<Consumer>;
+  socket: any;
+  transports: Set<TransportInfo>;
+  producers: Set<Producer>;
+  consumers: Set<Consumer>;
 }
 
 interface RoomInfo {
-    router: Router;
-    peers: Map<string, PeerInfo>;
+  router: Router;
+  peers: Map<string, PeerInfo>;
 }
 
-// Main router variable
-// let router: Router;
-
-// Using Map instead of object literal for rooms
 export const rooms = new Map<string, RoomInfo>();
 
-// Helper functions for room management
-class RoomManager {
-    // Create a new room
-    static createRoom(roomId: string, router: Router): void {
-        rooms.set(roomId, {
-            router,
-            peers: new Map()
-        });
+export class RoomManager {
+  static createRoom(roomId: string, router: Router) {
+    rooms.set(roomId, { router, peers: new Map() });
+  }
+
+  static addPeer(roomId: string, peerId: string, socket: any) {
+    const room = rooms.get(roomId);
+    if (!room) return false;
+
+    room.peers.set(peerId, {
+      socket,
+      transports: new Set(),
+      producers: new Set(),
+      consumers: new Set(),
+    });
+    return true;
+  }
+
+  static addTransport(roomId: string, peerId: string, transportInfo: TransportInfo) {
+    const room = rooms.get(roomId);
+    const peer = room?.peers.get(peerId);
+    if (!peer) return false;
+
+    peer.transports.add(transportInfo);
+    return true;
+  }
+
+  static addProducer(roomId: string, peerId: string, producer: Producer) {
+    const room = rooms.get(roomId);
+    const peer = room?.peers.get(peerId);
+    if (!peer) {
+      console.error(`Peer ${peerId} not found in room ${roomId}`);
+      return false;
     }
 
-    // Add a peer to a room
-    static addPeer(roomId: string, peerId: string, socket: any): boolean {
-        const room = rooms.get(roomId);
-        if (!room) return false;
+    console.log(`Adding producer ${producer.id} (${producer.kind}) to peer ${peerId} in room ${roomId}`);
+    peer.producers.add(producer);
+    
+    // Log all producers in the room
+    const allProducers = this.getAllProducers(roomId);
+    console.log(`Current producers in room ${roomId}:`, allProducers.map(p => ({
+      id: p.id,
+      kind: p.kind,
+      peerId: room ? Array.from(room.peers.entries())
+        .find(([_, peer]) => peer.producers.has(p))?.[0] : undefined
+    })));
+    
+    return true;
+  }
 
-        room.peers.set(peerId, {
-            socket,
-            transports: new Set<TransportInfo>(),
-            producers: new Set<Producer>(),
-            consumers: new Set<Consumer>()
-        });
-        return true;
+  static addConsumer(roomId: string, peerId: string, consumer: Consumer) {
+    const room = rooms.get(roomId);
+    const peer = room?.peers.get(peerId);
+    if (!peer) return false;
+
+    peer.consumers.add(consumer);
+    return true;
+  }
+
+  static removePeer(roomId: string, peerId: string) {
+    const room = rooms.get(roomId);
+    if (!room) {
+      console.error(`Room ${roomId} not found when removing peer`);
+      return false;
     }
 
-    // Add transport to a peer
-    static addTransport(roomId: string, peerId: string, transportInfo: TransportInfo): boolean {
-        const room = rooms.get(roomId);
-        const peer = room?.peers.get(peerId);
-        if (!peer) return false;
+    const peer = room.peers.get(peerId);
+    if (peer) {
+      console.log(`Removing peer ${peerId} from room ${roomId}`);
+      console.log(`Closing ${peer.transports.size} transports`);
+      peer.transports.forEach(t => t.transport.close());
+      
+      console.log(`Closing ${peer.producers.size} producers`);
+      peer.producers.forEach(p => {
+        console.log(`Closing producer ${p.id} (${p.kind})`);
+        p.close();
+      });
+      
+      console.log(`Closing ${peer.consumers.size} consumers`);
+      peer.consumers.forEach(c => {
+        console.log(`Closing consumer ${c.id}`);
+        c.close();
+      });
+      
+      room.peers.delete(peerId);
+      console.log(`Removed peer ${peerId} from room ${roomId}`);
 
-        peer.transports.add(transportInfo);
-        return true;
+      if (room.peers.size === 0) {
+        console.log(`Room ${roomId} is empty, removing it`);
+        rooms.delete(roomId);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  static removePeerFromAllRooms(peerId: string) {
+    rooms.forEach((_, roomId) => this.removePeer(roomId, peerId));
+  }
+
+  static getRouter(roomId: string) {
+    return rooms.get(roomId)?.router;
+  }
+
+  static getAllProducers(roomId: string) {
+    const room = rooms.get(roomId);
+    if (!room) {
+      console.error(`Room ${roomId} not found when getting producers`);
+      return [];
     }
 
-    // Add producer to a peer
-    static addProducer(roomId: string, peerId: string, producer: Producer): boolean {
-        const room = rooms.get(roomId);
-        const peer = room?.peers.get(peerId);
-        if (!peer) return false;
+    const producers: Producer[] = [];
+    room.peers.forEach((peer, peerId) => {
+      peer.producers.forEach(producer => {
+        console.log(`Found producer ${producer.id} (${producer.kind}) from peer ${peerId}`);
+        producers.push(producer);
+      });
+    });
+    return producers;
+  }
 
-        peer.producers.add(producer);
-        return true;
+  static findTransport(roomId: string, peerId: string, transportId: string) {
+    const peer = rooms.get(roomId)?.peers.get(peerId);
+    if (!peer) return null;
+
+    for (const transport of peer.transports) {
+      if (transport.transport.id === transportId) {
+        return transport;
+      }
     }
+    return null;
+  }
 
-    // Add consumer to a peer
-    static addConsumer(roomId: string, peerId: string, consumer: Consumer): boolean {
-        const room = rooms.get(roomId);
-        const peer = room?.peers.get(peerId);
-        if (!peer) return false;
+  static findTransportByDirection(roomId: string, peerId: string, direction: 'send' | 'recv') {
+    const peer = rooms.get(roomId)?.peers.get(peerId);
+    if (!peer) return null;
 
-        peer.consumers.add(consumer);
-        return true;
+    for (const transport of peer.transports) {
+      if (transport.direction === direction) {
+        return transport;
+      }
     }
+    return null;
+  }
 
-    // Remove a peer from a room
-    static removePeer(roomId: string, peerId: string): boolean {
-        const room = rooms.get(roomId);
-        if (!room) return false;
+  static findConsumer(roomId: string, peerId: string, consumerId: string) {
+    const peer = rooms.get(roomId)?.peers.get(peerId);
+    if (!peer) return null;
 
-        const peer = room.peers.get(peerId);
-        if (peer) {
-            // Clean up resources
-            peer.transports.forEach(t => t.transport.close());
-            peer.producers.forEach(p => p.close());
-            peer.consumers.forEach(c => c.close());
-            room.peers.delete(peerId);
-
-            // Remove room if empty
-            if (room.peers.size === 0) {
-                rooms.delete(roomId);
-            }
-            return true;
-        }
-        return false;
+    for (const consumer of peer.consumers) {
+      if (consumer.id === consumerId) {
+        return consumer;
+      }
     }
+    return null;
+  }
 
-    // Get all peers in a room
-    static getPeers(roomId: string): Map<string, PeerInfo> | undefined {
-        return rooms.get(roomId)?.peers;
-    }
-
-    // Get specific peer
-    static getPeer(roomId: string, peerId: string): PeerInfo | undefined {
-        return rooms.get(roomId)?.peers.get(peerId);
-    }
-
-    // Get room router
-    static getRouter(roomId: string): Router | undefined {
-        return rooms.get(roomId)?.router;
-    }
-
-    // Get all producers in a room
-    static getAllProducers(roomId: string): Producer[] {
-        const room = rooms.get(roomId);
-        if (!room) return [];
-
-        const producers: Producer[] = [];
-        room.peers.forEach(peer => {
-            peer.producers.forEach(producer => producers.push(producer));
-        });
-        return producers;
-    }
-
-    // Find transport by ID
-    static findTransport(roomId: string, peerId: string, transportId: string): TransportInfo | undefined {
-        const peer = this.getPeer(roomId, peerId);
-        return Array.from(peer?.transports || []).find(t => t.transport.id === transportId);
-    }
+  // Add this method to fix the error
+  static getPeers(roomId: string): Map<string, PeerInfo> | undefined {
+    return rooms.get(roomId)?.peers;
+  }
 }
-
-
-export default RoomManager
-
-

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { UploadResponse, CompleteUploadResponse } from '../../routes/FileUpload';
 import apiClient from '../../reuse/apiClient';
-import { buf } from "crc-32"
-const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB
+
+const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks for better performance
 
 const useFileUpload = () => {
     const [fileProps, setFileProps] = useState<{ [key: string]: { uploadId: string | null; url: string | null; fileKey: string | null } }>({});
@@ -32,11 +32,13 @@ const useFileUpload = () => {
             } else {
                 // If resuming, fetch the list of already uploaded parts
                 const { data: uploadedParts } = await apiClient.get(`/parts/${uploadId}?key=${key}`);
-                parts = uploadedParts;
+                parts = uploadedParts.parts || [];
                 startChunk = Math.max(...parts.map(part => part.PartNumber), 0);
             }
 
             const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+            setUploadStatus(prev => ({ ...prev, [file.name]: 'uploading' }));
+
             for (let chunkNumber = startChunk; chunkNumber < totalChunks; chunkNumber++) {
                 // Skip if this part has already been uploaded
                 if (parts.some(part => part.PartNumber === chunkNumber + 1)) {
@@ -63,34 +65,37 @@ const useFileUpload = () => {
                     const { data: chunkResponse }: { data: { PartNumber: number; ETag: string } } = await apiClient.post(`/chunk/${uploadId}`, formData, {
                         headers: { 'Content-Type': 'multipart/form-data' },
                         onUploadProgress: (progressEvent) => {
-                            console.log(progressEvent);
-
                             if (progressEvent.total) {
-                                const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
-                                const overallProgress = Math.round(((chunkNumber + progress / 100) / totalChunks) * 100);
+                                const chunkProgress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+                                const overallProgress = Math.round(((chunkNumber + chunkProgress / 100) / totalChunks) * 100);
                                 setUploadProgress((prev) => ({ ...prev, [file.name]: overallProgress }));
                             }
                         },
                     });
                     parts.push({ PartNumber: chunkResponse.PartNumber, ETag: chunkResponse.ETag });
                     setLastUploadedChunk(prev => ({ ...prev, [file.name]: chunkNumber + 1 }));
-                } catch (error) {
+                } catch (error: any) {
                     console.error(`Error uploading chunk ${chunkNumber + 1}:`, error);
+                    setErrors(prev => ({ ...prev, [file.name]: `Failed to upload chunk ${chunkNumber + 1}: ${error.message}` }));
                     setUploadStatus(prev => ({ ...prev, [file.name]: 'error' }));
                     return; // Exit the function, allowing for retry later
                 }
             }
-            console.log(`uploading ....`)
-            setUploadStatus(prev => ({ ...prev, [file.name]: 'uploading' }));
 
             // Complete upload           
-            const { data: completeResponse }: { data: CompleteUploadResponse } = await apiClient.post(`/complete/${uploadId}`, { key, parts });
-            setFileProps(prev => ({ ...prev, [file.name]: { uploadId, fileKey: key, url: completeResponse.location } }));
-            setUploadStatus(prev => ({ ...prev, [file.name]: 'completed' }));
-            setLastUploadedChunk(prev => ({ ...prev, [file.name]: 0 })); // Reset last uploaded chunk
+            try {
+                const { data: completeResponse }: { data: CompleteUploadResponse } = await apiClient.post(`/complete/${uploadId}`, { key, parts });
+                setFileProps(prev => ({ ...prev, [file.name]: { uploadId, fileKey: key, url: completeResponse.location } }));
+                setUploadStatus(prev => ({ ...prev, [file.name]: 'completed' }));
+                setLastUploadedChunk(prev => ({ ...prev, [file.name]: 0 })); // Reset last uploaded chunk
+            } catch (error: any) {
+                console.error('Error completing upload:', error);
+                setErrors(prev => ({ ...prev, [file.name]: `Failed to complete upload: ${error.message}` }));
+                setUploadStatus(prev => ({ ...prev, [file.name]: 'error' }));
+            }
         } catch (error: any) {
-            console.log(error);
-            setErrors(prev => ({ ...prev, [file.name]: 'Upload failed. Please try again.' }));
+            console.error('Upload error:', error);
+            setErrors(prev => ({ ...prev, [file.name]: `Upload failed: ${error.message}` }));
             setUploadStatus(prev => ({ ...prev, [file.name]: 'error' }));
         }
     };
@@ -100,7 +105,7 @@ const useFileUpload = () => {
             const uploadId = fileProps[fileName]?.uploadId;
             const fileKey = fileProps[fileName]?.fileKey;
 
-            if (uploadId) {
+            if (uploadId && fileKey) {
                 await apiClient.post(`/abort/${uploadId}`, { key: fileKey });
             }
             setLastUploadedChunk(prev => ({ ...prev, [fileName]: 0 }));
@@ -119,8 +124,9 @@ const useFileUpload = () => {
                 delete newErrors[fileName];
                 return newErrors;
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Abort failed:', error);
+            setErrors(prev => ({ ...prev, [fileName]: `Failed to abort upload: ${error.message}` }));
             setUploadStatus(prev => ({ ...prev, [fileName]: 'error' }));
         }
     };

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import VideoUploader, { FileConfig } from '../components/other components/VideoUploader'
 import useFileUpload from "../components/other components/UseFileUpload"
-export const CHUNK_SIZE = 1 * 1024 * 1024; // 5 MB
+export const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 export interface UploadResponse {
     uploadId: string;
     key: string;
@@ -11,9 +11,7 @@ export interface CompleteUploadResponse {
     location: string;
 }
 
-
 const FileUpload = () => {
-
     const { handleUpload, abortUpload, uploadProgress, setUploadProgress,
         uploadStatus, errors, setErrors, fileProps, setUploadStatus } = useFileUpload();
 
@@ -25,8 +23,8 @@ const FileUpload = () => {
         },
         {
             type: 'video',
-            maxSize: 500,
-            allowedExtensions: ['.mp4', '.avi', '.mov']
+            maxSize: 2000, // Increased to 2GB
+            allowedExtensions: ['.mp4', '.avi', '.mov', '.mkv', '.wmv']
         },
     ];
 
@@ -35,7 +33,6 @@ const FileUpload = () => {
         if (url) {
             window.open(url, '_blank');
         }
-
     }
 
     return (
@@ -55,7 +52,6 @@ const FileUpload = () => {
                 title="Upload Files"
                 description="Upload your image or video files here"
             />
-
         </div>
     )
 }

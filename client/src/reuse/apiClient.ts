@@ -39,7 +39,7 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
     (response) => {
         console.log(`Response received from ${response.config.url}:`, response.data);
-        return response;
+        return response.data;
     },
     (error) => {
         if (error.response) {

@@ -21,23 +21,25 @@ const useFileUpload = () => {
 
             if (!uploadId) {
                 // Initiate new upload if there's no existing upload ID
-                const { data: initiateResponse }: { data: UploadResponse } = await apiClient.post('/initiate', {
+                const { data: initiateResponse }: { data: UploadResponse } = await apiClient.post('/stream/initiate', {
                     fileName: file.name,
                     fileSize: file.size,
                     mimeType: file.type,
                 });
+                console.log('Initiate response:', initiateResponse);
                 uploadId = initiateResponse.uploadId;
                 key = initiateResponse.key;
                 setFileProps(prev => ({ ...prev, [file.name]: { uploadId, url: null, fileKey: key } }));
             } else {
                 // If resuming, fetch the list of already uploaded parts
-                const { data: uploadedParts } = await apiClient.get(`/parts/${uploadId}?key=${key}`);
+                const { data: uploadedParts } = await apiClient.get(`/stream/parts/upload/${uploadId}?key=${key}`);
                 parts = uploadedParts.parts || [];
                 startChunk = Math.max(...parts.map(part => part.PartNumber), 0);
             }
 
             const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
             setUploadStatus(prev => ({ ...prev, [file.name]: 'uploading' }));
+            console.log(`Uploading uploadId: ${uploadId}, key: ${key}`);
 
             for (let chunkNumber = startChunk; chunkNumber < totalChunks; chunkNumber++) {
                 // Skip if this part has already been uploaded
@@ -60,9 +62,8 @@ const useFileUpload = () => {
                         mimeType: file.type,
                     })
                 );
-
                 try {
-                    const { data: chunkResponse }: { data: { PartNumber: number; ETag: string } } = await apiClient.post(`/chunk/${uploadId}`, formData, {
+                    const { data: chunkResponse }: { data: { PartNumber: number; ETag: string } } = await apiClient.post(`/stream/chunk/upload/${uploadId}`, formData, {
                         headers: { 'Content-Type': 'multipart/form-data' },
                         onUploadProgress: (progressEvent) => {
                             if (progressEvent.total) {
@@ -84,7 +85,7 @@ const useFileUpload = () => {
 
             // Complete upload           
             try {
-                const { data: completeResponse }: { data: CompleteUploadResponse } = await apiClient.post(`/complete/${uploadId}`, { key, parts });
+                const { data: completeResponse }: { data: CompleteUploadResponse } = await apiClient.post(`/stream/complete/upload/${uploadId}`, { key, parts });
                 setFileProps(prev => ({ ...prev, [file.name]: { uploadId, fileKey: key, url: completeResponse.location } }));
                 setUploadStatus(prev => ({ ...prev, [file.name]: 'completed' }));
                 setLastUploadedChunk(prev => ({ ...prev, [file.name]: 0 })); // Reset last uploaded chunk
@@ -106,7 +107,7 @@ const useFileUpload = () => {
             const fileKey = fileProps[fileName]?.fileKey;
 
             if (uploadId && fileKey) {
-                await apiClient.post(`/abort/${uploadId}`, { key: fileKey });
+                await apiClient.post(`/stream/abort/upload/${uploadId}`, { key: fileKey });
             }
             setLastUploadedChunk(prev => ({ ...prev, [fileName]: 0 }));
             setUploadProgress(prev => {
